@@ -6,13 +6,17 @@ dotenv.config();
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z
+  HOST: z.string().default('127.0.0.1'),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  MISTRAL_API_KEY: z
     .string()
-    .default('3000')
-    .transform((val) => parseInt(val, 10)),
-  MISTRAL_API_KEY: z.string().min(1, 'MISTRAL_API_KEY is required for chat summarization'),
-  MISTRAL_MODEL: z.string().default('mistral-small-latest'),
-  TELEGRAM_BOT_TOKEN: z.string().min(1, 'TELEGRAM_BOT_TOKEN is required for Telegram bot interaction'),
+    .min(1, 'MISTRAL_API_KEY is required for chat summarization')
+    .refine((v) => !v.startsWith('your_'), 'MISTRAL_API_KEY must not be the default placeholder'),
+  MISTRAL_MODEL: z.string().default('open-mistral-nemo'),
+  TELEGRAM_BOT_TOKEN: z
+    .string()
+    .min(1, 'TELEGRAM_BOT_TOKEN is required for Telegram bot interaction')
+    .refine((v) => !v.startsWith('your_'), 'TELEGRAM_BOT_TOKEN must not be the default placeholder'),
   ALLOWED_TELEGRAM_USER_IDS: z
     .string()
     .default('')
@@ -24,15 +28,13 @@ const envSchema = z.object({
         .map((s) => Number(s))
         .filter((n) => !isNaN(n))
     ),
+  API_KEY: z.string().optional(),
   CHROME_PATH: z.string().optional(),
   HEADLESS: z
     .string()
     .default('true')
     .transform((val) => val.toLowerCase() === 'true'),
-  DEFAULT_SUMMARY_MESSAGE_LIMIT: z
-    .string()
-    .default('100')
-    .transform((val) => parseInt(val, 10)),
+  DEFAULT_SUMMARY_MESSAGE_LIMIT: z.coerce.number().int().min(5).max(500).default(100),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });
 
@@ -46,17 +48,19 @@ try {
   if (error instanceof z.ZodError) {
     const missingVars = error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`).join('\n');
     console.error('\n❌ Invalid or missing environment configuration:\n' + missingVars + '\n');
-    console.error('👉 Please copy .env.example to .env and fill in the required values.\n');
+    console.error('👉 Please copy .env.example to .env and fill in valid values.\n');
   }
-  // In test environment, provide fallback or rethrow
+  // In test environment, provide test fallbacks
   if (process.env.NODE_ENV === 'test') {
     parsedEnv = {
       NODE_ENV: 'test',
+      HOST: '127.0.0.1',
       PORT: 3000,
       MISTRAL_API_KEY: 'test_mistral_key',
-      MISTRAL_MODEL: 'mistral-small-latest',
+      MISTRAL_MODEL: 'open-mistral-nemo',
       TELEGRAM_BOT_TOKEN: 'test_telegram_token',
       ALLOWED_TELEGRAM_USER_IDS: [123456789],
+      API_KEY: undefined,
       CHROME_PATH: undefined,
       HEADLESS: true,
       DEFAULT_SUMMARY_MESSAGE_LIMIT: 100,
@@ -68,3 +72,4 @@ try {
 }
 
 export const env = parsedEnv;
+export const isProduction = env.NODE_ENV === 'production';

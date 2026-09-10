@@ -1,4 +1,5 @@
 import { IChatMessage, IChatSummary } from '../core/types/summary.types';
+import { escapeHtml } from '../utils/html-escape';
 
 export interface FormattedTranscriptResult {
   transcript: string;
@@ -235,6 +236,131 @@ export class MessageFormatterService {
     const footer = `\n━━━━━━━━━━━━━━━━━━━━\n_Generated with Mistral AI at ${new Date(summary.generatedAt).toLocaleTimeString()}_`;
 
     return `${header}\n\n${tldr}${topics}${actions}${decisions}${linksAndDates}${footer}`;
+  }
+
+  /**
+   * Format an IChatSummary into robust, parse-safe HTML for Telegram Bot
+   * Completely eliminates entity parse errors caused by LLM output containing *, _, [, ], etc.
+   */
+  static formatSummaryToHtml(summary: IChatSummary): string {
+    const urgencyEmojiMap = {
+      LOW: '🟢 Low',
+      MEDIUM: '🟡 Medium',
+      HIGH: '🟠 High',
+      CRITICAL: '🔴 Urgent / Critical',
+    };
+
+    const isUnreadFlow = summary.unreadCount > 0;
+
+    const headerLines = [
+      `📊 <b>Chat Summary: ${escapeHtml(summary.chatName)}</b>`,
+      isUnreadFlow
+        ? `🔴 <b>Unread Messages:</b> ${summary.unreadCount} new unread messages`
+        : `✅ <b>Status:</b> All messages read (showing last ${summary.totalMessagesAnalyzed} messages)`,
+      isUnreadFlow && summary.unreadTimeRange?.start && summary.unreadTimeRange?.end
+        ? `🕒 <b>Unread Period:</b> ${escapeHtml(summary.unreadTimeRange.start)} → ${escapeHtml(summary.unreadTimeRange.end)}`
+        : summary.timeRange.start && summary.timeRange.end
+        ? `🕒 <b>Period:</b> ${escapeHtml(summary.timeRange.start)} → ${escapeHtml(summary.timeRange.end)}`
+        : null,
+      isUnreadFlow && summary.previousContextCount && summary.previousContextCount > 0
+        ? `📖 <b>Preceding Context:</b> ${summary.previousContextCount} read messages included for reference`
+        : null,
+      `🚨 <b>Urgency:</b> ${urgencyEmojiMap[summary.urgencyLevel] || summary.urgencyLevel}`,
+      `━━━━━━━━━━━━━━━━━━━━`,
+    ].filter(Boolean);
+
+    const header = headerLines.join('\n');
+    const tldr = `📌 <b>TL;DR:</b>\n${escapeHtml(summary.tldr)}`;
+
+    const stringifyItem = (item: any): string => {
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object' && item !== null) {
+        const parts = Object.entries(item)
+          .map(([k, v]) => (v ? `${k}: ${v}` : ''))
+          .filter(Boolean);
+        return parts.length > 0 ? parts.join(', ') : JSON.stringify(item);
+      }
+      return String(item);
+    };
+
+    let topics = '';
+    if (summary.keyTopics.length > 0) {
+      topics = `\n\n🔑 <b>Key Topics &amp; Discussions:</b>\n` +
+        summary.keyTopics.map((topic) => `• ${escapeHtml(stringifyItem(topic))}`).join('\n');
+    }
+
+    let actions = '';
+    if (summary.actionItems.length > 0) {
+      actions = `\n\n✅ <b>Action Items &amp; Tasks:</b>\n` +
+        summary.actionItems
+          .map((item) => {
+            const taskStr = typeof item.task === 'object' ? stringifyItem(item.task) : (item.task || 'Task');
+            const assignee = item.assignee ? ` [<b>${escapeHtml(item.assignee)}</b>]` : '';
+            const due = item.dueDate ? ` (Due: ${escapeHtml(item.dueDate)})` : '';
+            return `•${assignee} ${escapeHtml(taskStr)}${due}`;
+          })
+          .join('\n');
+    }
+
+    let decisions = '';
+    if (summary.decisions.length > 0) {
+      decisions = `\n\n🎯 <b>Decisions Made:</b>\n` +
+        summary.decisions.map((d) => `• ${escapeHtml(stringifyItem(d))}`).join('\n');
+    }
+
+    let linksAndDates = '';
+    if (summary.importantLinksAndDates.length > 0) {
+      linksAndDates = `\n\n📅 <b>Important Dates &amp; Links:</b>\n` +
+        summary.importantLinksAndDates.map((item) => `• ${escapeHtml(stringifyItem(item))}`).join('\n');
+    }
+
+    const footer = `\n━━━━━━━━━━━━━━━━━━━━\n<i>Generated with Mistral AI at ${new Date(summary.generatedAt).toLocaleTimeString()}</i>`;
+
+    return `${header}\n\n${tldr}${topics}${actions}${decisions}${linksAndDates}${footer}`;
+  }
+
+  /**
+   * Format an IChatSummary into plain text without formatting tags (safe fallback)
+   */
+  static formatSummaryToPlainText(summary: IChatSummary): string {
+    const isUnreadFlow = summary.unreadCount > 0;
+    const headerLines = [
+      `[Chat Summary: ${summary.chatName}]`,
+      isUnreadFlow
+        ? `Unread Messages: ${summary.unreadCount} new unread messages`
+        : `Status: All messages read (${summary.totalMessagesAnalyzed} messages)`,
+      isUnreadFlow && summary.unreadTimeRange?.start && summary.unreadTimeRange?.end
+        ? `Unread Period: ${summary.unreadTimeRange.start} -> ${summary.unreadTimeRange.end}`
+        : summary.timeRange.start && summary.timeRange.end
+        ? `Period: ${summary.timeRange.start} -> ${summary.timeRange.end}`
+        : null,
+      `Urgency: ${summary.urgencyLevel}`,
+      `------------------------------------`,
+    ].filter(Boolean);
+
+    const stringifyItem = (item: any): string => {
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object' && item !== null) {
+        return Object.entries(item).map(([k, v]) => `${k}: ${v}`).join(', ');
+      }
+      return String(item);
+    };
+
+    const tldr = `TL;DR:\n${summary.tldr}`;
+    const topics = summary.keyTopics.length > 0
+      ? `\n\nKey Topics:\n` + summary.keyTopics.map((t) => `- ${stringifyItem(t)}`).join('\n')
+      : '';
+    const actions = summary.actionItems.length > 0
+      ? `\n\nAction Items:\n` + summary.actionItems.map((a) => `- ${a.assignee ? `[${a.assignee}] ` : ''}${stringifyItem(a.task)}`).join('\n')
+      : '';
+    const decisions = summary.decisions.length > 0
+      ? `\n\nDecisions:\n` + summary.decisions.map((d) => `- ${stringifyItem(d)}`).join('\n')
+      : '';
+    const links = summary.importantLinksAndDates.length > 0
+      ? `\n\nDates & Links:\n` + summary.importantLinksAndDates.map((l) => `- ${stringifyItem(l)}`).join('\n')
+      : '';
+
+    return `${headerLines.join('\n')}\n\n${tldr}${topics}${actions}${decisions}${links}`;
   }
 
   /**

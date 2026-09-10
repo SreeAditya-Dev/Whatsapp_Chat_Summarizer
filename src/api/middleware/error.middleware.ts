@@ -1,4 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
+import { env, isProduction } from '../../config/env';
+import { HttpError } from '../../core/errors/http-error';
 import { ApiResponseHelper } from '../../utils/api-response';
 import { logger } from '../../utils/logger';
 
@@ -8,21 +10,43 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
-  const statusCode = err.statusCode || err.status || 500;
+  const isHttpError = err instanceof HttpError;
+  const statusCode = isHttpError ? err.statusCode : err.statusCode || err.status || 500;
+  const code = isHttpError ? err.code : err.code || 'INTERNAL_SERVER_ERROR';
   const message = err.message || 'Internal Server Error';
-  const code = err.code || 'INTERNAL_SERVER_ERROR';
 
-  logger.error(
-    {
-      err,
-      url: req.url,
-      method: req.method,
-      statusCode,
-    },
-    'Unhandled API Exception'
-  );
+  // In production, mask internal error details unless explicitly an HttpError with safe details
+  const details = isProduction
+    ? isHttpError
+      ? err.details
+      : undefined
+    : err.details || (err.stack ? { stack: err.stack } : undefined);
 
-  res.status(statusCode).json(ApiResponseHelper.error(message, code, err.details));
+  if (statusCode >= 500) {
+    logger.error(
+      {
+        err: err.message,
+        stack: err.stack,
+        url: req.url,
+        method: req.method,
+        statusCode,
+      },
+      'Server Exception in API route'
+    );
+  } else {
+    logger.debug(
+      {
+        url: req.url,
+        method: req.method,
+        statusCode,
+        code,
+        message,
+      },
+      'Client error in API request'
+    );
+  }
+
+  res.status(statusCode).json(ApiResponseHelper.error(message, code, details));
 }
 
 export function notFoundHandler(req: Request, res: Response): void {

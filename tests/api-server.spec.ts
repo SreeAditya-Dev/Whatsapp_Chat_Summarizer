@@ -7,8 +7,15 @@ import { ISummarizer, SummarizeOptions } from '../src/core/interfaces/summarizer
 import { PaginationParams, PaginatedResult } from '../src/core/types/api.types';
 import { IChatInfo, IChatMessage, IChatSummary } from '../src/core/types/summary.types';
 import { ApiResponseHelper } from '../src/utils/api-response';
+import { HttpError } from '../src/core/errors/http-error';
 
 class MockChatProvider implements IChatProvider {
+  public customStatus: ChatProviderStatus = {
+    state: 'READY',
+    pushname: 'TestUser',
+    phoneNumber: '1234567890',
+  };
+
   private chats: IChatInfo[] = [
     { id: 'chat-1', name: 'Engineering Team', isGroup: true, unreadCount: 15 },
     { id: 'chat-2', name: 'Product Design', isGroup: true, unreadCount: 0 },
@@ -16,22 +23,26 @@ class MockChatProvider implements IChatProvider {
     { id: 'chat-4', name: 'DevOps Alerts', isGroup: true, unreadCount: 230 },
   ];
 
+  private ensureReady(): void {
+    if (this.customStatus.state !== 'READY') {
+      throw HttpError.serviceUnavailable('WhatsApp client is not ready. Authenticate first.', 'WHATSAPP_NOT_READY');
+    }
+  }
+
   async initialize(): Promise<void> {}
 
   getStatus(): ChatProviderStatus {
-    return {
-      state: 'READY',
-      pushname: 'TestUser',
-      phoneNumber: '1234567890',
-    };
+    return this.customStatus;
   }
 
   async getUnreadChats(pagination?: PaginationParams): Promise<PaginatedResult<IChatInfo>> {
+    this.ensureReady();
     const unread = this.chats.filter((c) => c.unreadCount > 0);
     return ApiResponseHelper.sliceArrayWithPagination(unread, pagination?.page, pagination?.limit);
   }
 
   async getRecentChats(pagination?: PaginationParams, filter: ChatFilterType = 'all'): Promise<PaginatedResult<IChatInfo>> {
+    this.ensureReady();
     let filtered = this.chats;
     if (filter === 'groups') filtered = this.chats.filter((c) => c.isGroup);
     if (filter === 'direct') filtered = this.chats.filter((c) => !c.isGroup);
@@ -39,10 +50,12 @@ class MockChatProvider implements IChatProvider {
   }
 
   async getChatById(chatId: string): Promise<IChatInfo | null> {
+    this.ensureReady();
     return this.chats.find((c) => c.id === chatId || c.name === chatId) || null;
   }
 
   async getChatMessages(chatId: string, limit = 100): Promise<IChatMessage[]> {
+    this.ensureReady();
     return [
       {
         id: 'msg-1',
@@ -170,4 +183,50 @@ describe('Express REST API (v1)', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('WhatsApp is Ready!');
   });
+
+  it('GET /qr should safely escape pushname against Stored XSS', async () => {
+    mockProvider.customStatus = {
+      state: 'READY',
+      pushname: '<script>alert("XSS")</script>',
+      phoneNumber: '1234567890',
+    };
+
+    const res = await request(app).get('/qr');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('<script>alert("XSS")</script>');
+    expect(res.text).toContain('&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;');
+  });
+
+  it('GET /api/v1/chats should reject invalid query parameters with 400', async () => {
+    // Invalid page <= 0
+    const badPageRes = await request(app).get('/api/v1/chats?page=0');
+    expect(badPageRes.status).toBe(400);
+    expect(badPageRes.body.success).toBe(false);
+    expect(badPageRes.body.error.code).toBe('VALIDATION_ERROR');
+
+    // Invalid filter type
+    const badFilterRes = await request(app).get('/api/v1/chats?filter=unknown_filter');
+    expect(badFilterRes.status).toBe(400);
+    expect(badFilterRes.body.success).toBe(false);
+    expect(badFilterRes.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('GET /api/v1/chats and POST /api/v1/summarize should return 503 when WhatsApp is not ready', async () => {
+    mockProvider.customStatus = {
+      state: 'INITIALIZING',
+      pushname: undefined,
+      phoneNumber: undefined,
+    };
+
+    const chatsRes = await request(app).get('/api/v1/chats');
+    expect(chatsRes.status).toBe(503);
+    expect(chatsRes.body.success).toBe(false);
+    expect(chatsRes.body.error.code).toBe('WHATSAPP_NOT_READY');
+
+    const sumRes = await request(app).post('/api/v1/summarize').send({ chatId: 'chat-1' });
+    expect(sumRes.status).toBe(503);
+    expect(sumRes.body.success).toBe(false);
+    expect(sumRes.body.error.code).toBe('WHATSAPP_NOT_READY');
+  });
 });
+

@@ -136,4 +136,71 @@ describe('MessageFormatterService', () => {
     expect(result.transcript).toContain('[PREVIOUS CONTEXT]');
     expect(result.transcript).toContain('[NEW]');
   });
+
+  it('should safely format LLM output with Markdown characters and raw HTML injections into HTML', () => {
+    const maliciousSummary: IChatSummary = {
+      chatId: 'test-group@g.us',
+      chatName: 'Dev & Design <Community>',
+      isGroup: true,
+      totalMessagesAnalyzed: 10,
+      unreadCount: 5,
+      timeRange: { start: '10:00', end: '11:00' },
+      unreadTimeRange: { start: '10:30', end: '11:00' },
+      tldr: 'Use *bold* _italic_ [link](http://x) <script>alert("xss")</script> & more symbols!',
+      keyTopics: ['Topic with <b>HTML</b> & *markdown*', 'Clean topic'],
+      actionItems: [
+        { task: 'Run <cmd> --force & check "logs"', assignee: 'Bob <Admin>', dueDate: 'ASAP' },
+      ],
+      decisions: ['Decision: switch to <Postgres> & use port "5432"'],
+      importantLinksAndDates: ['Link: https://example.com?a=1&b=2'],
+      urgencyLevel: 'HIGH',
+      rawSummaryMarkdown: '',
+      generatedAt: '2026-09-10T12:00:00Z',
+    };
+
+    const html = MessageFormatterService.formatSummaryToHtml(maliciousSummary);
+
+    // Assert that raw script tags and angle brackets are strictly escaped
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('alert("xss")</script>');
+    expect(html).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+    expect(html).toContain('Dev &amp; Design &lt;Community&gt;');
+    expect(html).toContain('Bob &lt;Admin&gt;');
+    expect(html).toContain('&lt;Postgres&gt;');
+
+    // Assert valid HTML tags are used for formatting
+    expect(html).toContain('<b>Chat Summary:');
+    expect(html).toContain('<b>Urgency:</b> 🟠 High');
+    expect(html).toContain('📌 <b>TL;DR:</b>');
+    expect(html).toContain('🔑 <b>Key Topics &amp; Discussions:</b>');
+  });
+
+  it('should format IChatSummary to plain text without HTML tags', () => {
+    const summary: IChatSummary = {
+      chatId: 'test-group@g.us',
+      chatName: 'Dev Group',
+      isGroup: true,
+      totalMessagesAnalyzed: 5,
+      unreadCount: 0,
+      timeRange: { start: '10:00', end: '10:30' },
+      tldr: 'All bugs resolved.',
+      keyTopics: ['Bug fixes'],
+      actionItems: [{ task: 'Deploy' }],
+      decisions: ['Approved'],
+      importantLinksAndDates: [],
+      urgencyLevel: 'LOW',
+      rawSummaryMarkdown: '',
+      generatedAt: '2026-09-10T12:00:00Z',
+    };
+
+    const plain = MessageFormatterService.formatSummaryToPlainText(summary);
+
+    expect(plain).not.toContain('<b>');
+    expect(plain).not.toContain('<i>');
+    expect(plain).not.toContain('<code>');
+    expect(plain).toContain('Chat Summary: Dev Group');
+    expect(plain).toContain('TL;DR:');
+    expect(plain).toContain('All bugs resolved.');
+  });
 });
+

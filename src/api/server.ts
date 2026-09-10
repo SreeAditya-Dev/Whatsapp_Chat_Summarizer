@@ -1,8 +1,11 @@
 import express, { Express, Router } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { IChatProvider } from '../core/interfaces/chat.interface';
 import { ISummarizer } from '../core/interfaces/summarizer.interface';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import { apiKeyAuth } from './middleware/auth.middleware';
 import { createHealthRouter } from './routes/v1/health.route';
 import { createWhatsAppRouter } from './routes/v1/whatsapp.route';
 import { createChatsRouter } from './routes/v1/chats.route';
@@ -16,32 +19,81 @@ export function createExpressApp(
 ): Express {
   const app = express();
 
-  // Core Middleware
-  app.use(cors());
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  // Security Headers
+  app.use(
+    helmet({
+      contentSecurityPolicy: false, // Allows inline base64 QR code image rendering
+    })
+  );
 
-  // Request logger middleware
+  // Cross-Origin Resource Sharing
+  app.use(cors());
+
+  // JSON Body Parser
+  app.use(express.json());
+
+  // Request Logging
   app.use((req, _res, next) => {
     logger.debug({ method: req.method, url: req.url }, 'Incoming HTTP Request');
     next();
   });
 
-  // Visual QR Page & Root Health
-  app.use(createQrPageRouter(chatProvider));
+  // Rate Limiting
+  const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 200, // max 200 requests per 15 minutes per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests, please try again later.' },
+      timestamp: new Date().toISOString(),
+    },
+  });
+
+  const summarizeLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 15, // max 15 summarize requests per minute to prevent AI cost exhaustion
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many summarization requests. Please wait a minute.' },
+      timestamp: new Date().toISOString(),
+    },
+  });
+
+  const qrLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30, // max 30 QR requests per minute
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Visual QR Page & Root Health (Public for local pairing)
+  app.use(qrLimiter, createQrPageRouter(chatProvider));
   app.use('/health', createHealthRouter(chatProvider));
 
   // Version 1 API Router
   const v1Router = Router();
+  v1Router.use(generalLimiter);
+
+  // Health endpoint (public)
   v1Router.use('/health', createHealthRouter(chatProvider));
-  v1Router.use('/whatsapp', createWhatsAppRouter(chatProvider));
-  v1Router.use('/chats', createChatsRouter(chatProvider));
-  v1Router.use('/summarize', createSummaryRouter(chatProvider, summarizer));
+
+  // WhatsApp endpoints (protected by optional API key)
+  v1Router.use('/whatsapp', apiKeyAuth, createWhatsAppRouter(chatProvider));
+
+  // Chats endpoints (protected by optional API key)
+  v1Router.use('/chats', apiKeyAuth, createChatsRouter(chatProvider));
+
+  // Summarize endpoint (rate limited + protected by optional API key)
+  v1Router.use('/summarize', summarizeLimiter, apiKeyAuth, createSummaryRouter(chatProvider, summarizer));
 
   // Mount v1 router under /api/v1
   app.use('/api/v1', v1Router);
 
-  // Fallback 404 & Error Handlers
+  // Fallback 404 & Global Error Handlers
   app.use(notFoundHandler);
   app.use(errorHandler);
 

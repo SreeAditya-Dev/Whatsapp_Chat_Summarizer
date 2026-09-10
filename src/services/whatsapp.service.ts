@@ -8,6 +8,7 @@ import { IChatProvider, ChatFilterType, ChatProviderStatus } from '../core/inter
 import { PaginationParams, PaginatedResult } from '../core/types/api.types';
 import { IChatInfo, IChatMessage } from '../core/types/summary.types';
 import { ApiResponseHelper } from '../utils/api-response';
+import { HttpError } from '../core/errors/http-error';
 import { logger } from '../utils/logger';
 
 export class WhatsAppService extends EventEmitter implements IChatProvider {
@@ -262,8 +263,8 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
       // First try exact ID match
       const chat = await this.client!.getChatById(chatId);
       if (chat) return this.mapChatToInfo(chat);
-    } catch {
-      // Fallback: search by name
+    } catch (err: any) {
+      logger.debug({ err: err?.message, chatId }, 'Exact ID lookup failed, trying name search fallback');
       const chats = await this.safeGetChats();
       const lower = chatId.toLowerCase();
       const matched = chats.find(
@@ -279,6 +280,7 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
 
   /**
    * Fetch recent messages from a chat, preserving sender names and quoted replies
+   * Uses sender caching and concurrent batching to avoid N+1 serial roundtrip bottlenecks.
    */
   async getChatMessages(chatId: string, limit = 100): Promise<IChatMessage[]> {
     this.ensureReady();
@@ -286,9 +288,9 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
     let targetChat: Chat;
     try {
       targetChat = await this.client!.getChatById(chatId);
-    } catch {
-      // Try search by name if chatId wasn't an exact serialized ID
-      const chats = await this.client!.getChats();
+    } catch (err: any) {
+      logger.debug({ err: err?.message, chatId }, 'Exact chat lookup failed, trying name search fallback');
+      const chats = await this.safeGetChats();
       const lower = chatId.toLowerCase();
       const found = chats.find(
         (c) =>
@@ -296,76 +298,103 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
           (c as any).formattedTitle?.toLowerCase().includes(lower)
       );
       if (!found) {
-        throw new Error(`Chat not found for identifier: "${chatId}"`);
+        throw HttpError.notFound(`Chat not found for identifier: "${chatId}"`, 'CHAT_NOT_FOUND');
       }
       targetChat = found;
     }
 
-    const effectiveLimit = Math.min(Math.max(10, limit), 500);
+    const effectiveLimit = Math.min(Math.max(5, limit), 500);
     logger.info({ chatName: targetChat.name, limit: effectiveLimit }, 'Fetching messages from WhatsApp');
 
     const rawMessages: Message[] = await targetChat.fetchMessages({
       limit: effectiveLimit,
     });
 
+    const contactCache = new Map<string, { name: string; number: string }>();
+
+    const resolveSender = async (msg: Message): Promise<{ name: string; number: string }> => {
+      if (msg.fromMe) return { name: 'Me', number: '' };
+
+      const senderKey = msg.author || msg.from;
+      if (contactCache.has(senderKey)) {
+        return contactCache.get(senderKey)!;
+      }
+
+      // Fast-path: check pre-populated notifyName from WhatsApp Web
+      const notifyName = (msg as any)._data?.notifyName;
+      if (notifyName) {
+        const info = { name: notifyName, number: '' };
+        contactCache.set(senderKey, info);
+        return info;
+      }
+
+      try {
+        const contact = await msg.getContact();
+        const info = {
+          name: contact.pushname || contact.name || contact.shortName || contact.number || 'User',
+          number: contact.number || '',
+        };
+        contactCache.set(senderKey, info);
+        return info;
+      } catch (err: any) {
+        logger.debug({ err: err?.message, senderKey }, 'Contact lookup failed, using fallback ID');
+        const fallback = { name: senderKey.split('@')[0] || 'User', number: '' };
+        contactCache.set(senderKey, fallback);
+        return fallback;
+      }
+    };
+
+    const resolveQuoted = async (msg: Message): Promise<{ senderName: string; body: string } | undefined> => {
+      if (!msg.hasQuotedMsg) return undefined;
+      try {
+        const quoted = await msg.getQuotedMessage();
+        if (!quoted) return undefined;
+
+        let quotedSender = 'User';
+        if (quoted.fromMe) {
+          quotedSender = 'Me';
+        } else {
+          const qSender = await resolveSender(quoted);
+          quotedSender = qSender.name;
+        }
+
+        return {
+          senderName: quotedSender,
+          body: quoted.body || (quoted.hasMedia ? '[Media]' : ''),
+        };
+      } catch (e: any) {
+        logger.debug({ error: e?.message }, 'Could not resolve quoted message');
+        return undefined;
+      }
+    };
+
+    const batchSize = 10;
     const parsedMessages: IChatMessage[] = [];
 
-    for (const msg of rawMessages) {
-      // Skip system notifications or empty protocol messages
-      if (!msg.body && !msg.hasMedia) continue;
+    for (let i = 0; i < rawMessages.length; i += batchSize) {
+      const batch = rawMessages.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(async (msg): Promise<IChatMessage | null> => {
+          if (!msg.body && !msg.hasMedia) return null;
 
-      let senderName = 'Unknown';
-      let senderNumber = '';
+          const sender = await resolveSender(msg);
+          const quoted = await resolveQuoted(msg);
 
-      if (msg.fromMe) {
-        senderName = 'Me';
-      } else {
-        try {
-          const contact = await msg.getContact();
-          senderName = contact.pushname || contact.name || contact.shortName || contact.number || 'User';
-          senderNumber = contact.number || '';
-        } catch {
-          senderName = (msg as any)._data?.notifyName || msg.author || msg.from;
-        }
-      }
+          return {
+            id: msg.id._serialized,
+            senderName: sender.name,
+            senderNumber: sender.number,
+            timestamp: new Date(msg.timestamp * 1000),
+            body: msg.body || (msg.hasMedia ? '[Media File]' : ''),
+            isQuoted: Boolean(quoted),
+            quotedMessage: quoted,
+            hasMedia: msg.hasMedia,
+            mediaType: msg.type,
+          };
+        })
+      );
 
-      let isQuoted = false;
-      let quotedMessage: { senderName: string; body: string } | undefined;
-
-      if (msg.hasQuotedMsg) {
-        try {
-          const quoted = await msg.getQuotedMessage();
-          if (quoted) {
-            let quotedSender = 'User';
-            if (quoted.fromMe) {
-              quotedSender = 'Me';
-            } else {
-              const qContact = await quoted.getContact().catch(() => null);
-              quotedSender = qContact?.pushname || qContact?.name || 'User';
-            }
-
-            isQuoted = true;
-            quotedMessage = {
-              senderName: quotedSender,
-              body: quoted.body || (quoted.hasMedia ? '[Media]' : ''),
-            };
-          }
-        } catch (e: any) {
-          logger.debug({ error: e.message }, 'Could not resolve quoted message');
-        }
-      }
-
-      parsedMessages.push({
-        id: msg.id._serialized,
-        senderName,
-        senderNumber,
-        timestamp: new Date(msg.timestamp * 1000),
-        body: msg.body || (msg.hasMedia ? '[Media File]' : ''),
-        isQuoted,
-        quotedMessage,
-        hasMedia: msg.hasMedia,
-        mediaType: msg.type,
-      });
+      parsedMessages.push(...batchResults.filter((m): m is IChatMessage => m !== null));
     }
 
     return parsedMessages;
@@ -414,8 +443,9 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
     }
 
     if (!this.client || (this.status.state !== 'READY' && this.status.state !== 'AUTHENTICATED')) {
-      throw new Error(
-        `WhatsApp client is not ready. Current state: ${this.status.state}. Please scan the QR code to pair.`
+      throw HttpError.serviceUnavailable(
+        `WhatsApp client is not ready. Current state: ${this.status.state}. Please scan the QR code to pair.`,
+        'SERVICE_UNAVAILABLE'
       );
     }
   }

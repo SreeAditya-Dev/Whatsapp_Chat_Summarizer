@@ -1,11 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { IChatProvider } from '../../core/interfaces/chat.interface';
+import { escapeHtml } from '../../utils/html-escape';
 
 export function createQrPageRouter(chatProvider: IChatProvider): Router {
   const router = Router();
 
   router.get('/qr', (_req: Request, res: Response) => {
     const status = chatProvider.getStatus();
+    const safePushname = escapeHtml(status.pushname || 'User');
+    const safePhone = status.phoneNumber ? `(+${escapeHtml(status.phoneNumber)})` : '';
+    const safeState = escapeHtml(status.state);
 
     if (status.state === 'READY') {
       res.send(`
@@ -26,7 +30,7 @@ export function createQrPageRouter(chatProvider: IChatProvider): Router {
           <div class="card">
             <span class="badge">Connected</span>
             <h1>WhatsApp is Ready!</h1>
-            <p>Authenticated as: <strong>${status.pushname || 'User'}</strong> (${status.phoneNumber ? '+' + status.phoneNumber : ''})</p>
+            <p>Authenticated as: <strong>${safePushname}</strong> ${safePhone}</p>
             <p>You can now interact via your Telegram Bot or REST API.</p>
           </div>
         </body>
@@ -35,7 +39,12 @@ export function createQrPageRouter(chatProvider: IChatProvider): Router {
       return;
     }
 
-    if (status.qrCodeDataUrl) {
+    const safeQrDataUrl =
+      status.qrCodeDataUrl && status.qrCodeDataUrl.startsWith('data:image/png;base64,')
+        ? status.qrCodeDataUrl
+        : '';
+
+    if (safeQrDataUrl) {
       res.send(`
         <!DOCTYPE html>
         <html lang="en">
@@ -57,7 +66,7 @@ export function createQrPageRouter(chatProvider: IChatProvider): Router {
           <div class="card">
             <h1>Link WhatsApp</h1>
             <div class="qr-box">
-              <img src="${status.qrCodeDataUrl}" alt="WhatsApp QR Code" />
+              <img src="${safeQrDataUrl}" alt="WhatsApp QR Code" />
             </div>
             <ol>
               <li>Open WhatsApp on your mobile phone</li>
@@ -92,7 +101,7 @@ export function createQrPageRouter(chatProvider: IChatProvider): Router {
         <div class="card">
           <div class="spinner"></div>
           <h1>Initializing WhatsApp Client</h1>
-          <p>Current Status: <strong>${status.state}</strong></p>
+          <p>Current Status: <strong>${safeState}</strong></p>
           <p>Generating QR code, please wait...</p>
         </div>
       </body>
