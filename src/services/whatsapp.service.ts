@@ -148,12 +148,78 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
   }
 
   /**
+   * Safely inject in-browser error handling for WWebJS getChats to prevent 'r' exceptions
+   */
+  private async injectChatSafetyPatch(): Promise<void> {
+    const pupPage = (this.client as any)?.pupPage;
+    if (!pupPage) return;
+
+    try {
+      await pupPage.evaluate(() => {
+        const w = (globalThis as any).window;
+        if (!w || !w.WWebJS) return;
+
+        // Wrap getChats with fault-tolerance
+        w.WWebJS.getChats = async () => {
+          try {
+            const collections = w.require ? w.require('WAWebCollections') : null;
+            const chatCollection = collections?.Chat;
+            if (!chatCollection) return [];
+            const chats = chatCollection.getModelsArray ? chatCollection.getModelsArray() : [];
+
+            const chatPromises = chats.map(async (chat: any) => {
+              try {
+                return await w.WWebJS.getChatModel(chat);
+              } catch {
+                try {
+                  const rawId = chat.id?._serialized || chat.id;
+                  return {
+                    id: { _serialized: rawId, ...chat.id },
+                    name: chat.name || chat.formattedTitle || 'Chat',
+                    formattedTitle: chat.formattedTitle || chat.name || 'Chat',
+                    isGroup: Boolean(chat.isGroup),
+                    isMuted: false,
+                    unreadCount: chat.unreadCount || 0,
+                    timestamp: chat.t || chat.timestamp || 0,
+                  };
+                } catch {
+                  return null;
+                }
+              }
+            });
+
+            const results = await Promise.all(chatPromises);
+            return results.filter(Boolean);
+          } catch {
+            return [];
+          }
+        };
+      });
+    } catch (e: any) {
+      logger.debug({ error: e?.message }, 'Could not evaluate in-browser chat safety patch');
+    }
+  }
+
+  /**
+   * Safely retrieve chats with automatic in-browser patch injection
+   */
+  private async safeGetChats(): Promise<Chat[]> {
+    this.ensureReady();
+    await this.injectChatSafetyPatch();
+    try {
+      return await this.client!.getChats();
+    } catch (err: any) {
+      logger.warn({ error: err?.message || err }, 'First getChats attempt encountered issue, retrying with patch');
+      await this.injectChatSafetyPatch();
+      return await this.client!.getChats();
+    }
+  }
+
+  /**
    * Fetch all unread chats with pagination
    */
   async getUnreadChats(pagination?: PaginationParams): Promise<PaginatedResult<IChatInfo>> {
-    this.ensureReady();
-
-    const chats = await this.client!.getChats();
+    const chats = await this.safeGetChats();
     const unread = chats.filter((c) => c.unreadCount > 0);
 
     // Sort by unread count descending (chats with most unreads first)
@@ -174,9 +240,7 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
     pagination?: PaginationParams,
     filter: ChatFilterType = 'all'
   ): Promise<PaginatedResult<IChatInfo>> {
-    this.ensureReady();
-
-    let chats = await this.client!.getChats();
+    let chats = await this.safeGetChats();
 
     if (filter === 'groups') {
       chats = chats.filter((c) => c.isGroup);
@@ -204,7 +268,7 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
       if (chat) return this.mapChatToInfo(chat);
     } catch {
       // Fallback: search by name
-      const chats = await this.client!.getChats();
+      const chats = await this.safeGetChats();
       const lower = chatId.toLowerCase();
       const matched = chats.find(
         (c) =>

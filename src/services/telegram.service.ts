@@ -152,8 +152,12 @@ export class TelegramBotService {
           await this.executeSummarization(ctx, chatId);
         }
       } catch (err: any) {
-        logger.error({ error: err.message, data }, 'Error handling Telegram callback query');
-        await ctx.reply(`⚠️ Error: ${err.message}`);
+        logger.error({ error: err?.stack || err?.message || err, data }, 'Error handling Telegram callback query');
+        // Do not fail if message was not modified
+        if (err?.description?.includes('message is not modified')) {
+          return;
+        }
+        await ctx.reply(`⚠️ Could not complete request: ${err?.message || 'Error occurred'}`);
       }
     });
   }
@@ -170,7 +174,7 @@ export class TelegramBotService {
     const status = this.chatProvider.getStatus();
     if (status.state !== 'READY') {
       const msg = `⚠️ WhatsApp is not ready (*${status.state}*). Use /qr to authenticate first.`;
-      if (isEdit) await ctx.editMessageText(msg, { parse_mode: 'Markdown' });
+      if (isEdit) await ctx.editMessageText(msg, { parse_mode: 'Markdown' }).catch(() => ctx.reply(msg, { parse_mode: 'Markdown' }));
       else await ctx.reply(msg, { parse_mode: 'Markdown' });
       return;
     }
@@ -196,7 +200,7 @@ export class TelegramBotService {
       const emptyMsg = `🎉 *No ${category === 'unread' ? 'unread messages' : 'chats found'}!*`;
       const backKeyboard = new InlineKeyboard().text('🔙 Back to Menu', 'nav:status');
       if (isEdit) {
-        await ctx.editMessageText(emptyMsg, { parse_mode: 'Markdown', reply_markup: backKeyboard });
+        await ctx.editMessageText(emptyMsg, { parse_mode: 'Markdown', reply_markup: backKeyboard }).catch(() => ctx.reply(emptyMsg, { parse_mode: 'Markdown', reply_markup: backKeyboard }));
       } else {
         await ctx.reply(emptyMsg, { parse_mode: 'Markdown', reply_markup: backKeyboard });
       }
@@ -208,7 +212,8 @@ export class TelegramBotService {
     items.forEach((chat) => {
       const badge = chat.unreadCount > 0 ? ` (${chat.unreadCount} unread)` : '';
       const icon = chat.isGroup ? '👥' : '👤';
-      const label = `${icon} ${chat.name.slice(0, 22)}${badge}`;
+      const displayName = (chat.name || 'Chat').slice(0, 22);
+      const label = `${icon} ${displayName}${badge}`;
       keyboard.text(label, `sum:${chat.id}`).row();
     });
 
@@ -230,7 +235,7 @@ export class TelegramBotService {
       `_Tap any chat below to summarize recent messages with Mistral AI:_`;
 
     if (isEdit) {
-      await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard }).catch(() => ctx.reply(text, { parse_mode: 'Markdown', reply_markup: keyboard }));
     } else {
       await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: keyboard });
     }
