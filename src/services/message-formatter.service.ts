@@ -136,10 +136,21 @@ export class MessageFormatterService {
 
     const tldr = `📌 *TL;DR:*\n${summary.tldr}`;
 
+    const stringifyItem = (item: any): string => {
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object' && item !== null) {
+        const parts = Object.entries(item)
+          .map(([k, v]) => (v ? `${k}: ${v}` : ''))
+          .filter(Boolean);
+        return parts.length > 0 ? parts.join(', ') : JSON.stringify(item);
+      }
+      return String(item);
+    };
+
     let topics = '';
     if (summary.keyTopics.length > 0) {
       topics = `\n\n🔑 *Key Topics & Discussions:*\n` +
-        summary.keyTopics.map((topic) => `• ${topic}`).join('\n');
+        summary.keyTopics.map((topic) => `• ${stringifyItem(topic)}`).join('\n');
     }
 
     let actions = '';
@@ -147,9 +158,10 @@ export class MessageFormatterService {
       actions = `\n\n✅ *Action Items & Tasks:*\n` +
         summary.actionItems
           .map((item) => {
+            const taskStr = typeof item.task === 'object' ? stringifyItem(item.task) : (item.task || 'Task');
             const assignee = item.assignee ? ` [${item.assignee}]` : '';
             const due = item.dueDate ? ` (Due: ${item.dueDate})` : '';
-            return `•${assignee} ${item.task}${due}`;
+            return `•${assignee} ${taskStr}${due}`;
           })
           .join('\n');
     }
@@ -157,13 +169,13 @@ export class MessageFormatterService {
     let decisions = '';
     if (summary.decisions.length > 0) {
       decisions = `\n\n🎯 *Decisions Made:*\n` +
-        summary.decisions.map((d) => `• ${d}`).join('\n');
+        summary.decisions.map((d) => `• ${stringifyItem(d)}`).join('\n');
     }
 
     let linksAndDates = '';
     if (summary.importantLinksAndDates.length > 0) {
       linksAndDates = `\n\n📅 *Important Dates & Links:*\n` +
-        summary.importantLinksAndDates.map((item) => `• ${item}`).join('\n');
+        summary.importantLinksAndDates.map((item) => `• ${stringifyItem(item)}`).join('\n');
     }
 
     const footer = `\n━━━━━━━━━━━━━━━━━━━━\n_Generated with Mistral AI at ${new Date(summary.generatedAt).toLocaleTimeString()}_`;
