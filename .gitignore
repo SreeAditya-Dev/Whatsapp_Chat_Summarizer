@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# WhatsApp Web session and cache storage
+.wwebjs_auth/
+.wwebjs_cache/
+session/
+tokens/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE Files
+.vscode/
+.idea/
