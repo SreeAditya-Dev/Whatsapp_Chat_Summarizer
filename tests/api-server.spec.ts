@@ -74,6 +74,7 @@ class MockSummarizer implements ISummarizer {
       chatName: options.chatName,
       isGroup: options.isGroup,
       totalMessagesAnalyzed: messages.length,
+      unreadCount: options.unreadCount || 0,
       timeRange: { start: '2026-09-10 10:00', end: '2026-09-10 10:02' },
       tldr: 'PR was reviewed and approved.',
       keyTopics: ['PR Review'],

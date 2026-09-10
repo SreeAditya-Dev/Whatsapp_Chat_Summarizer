@@ -11,10 +11,16 @@ export interface IChatSummary {
   chatName: string;
   isGroup: boolean;
   totalMessagesAnalyzed: number;
+  unreadCount: number;
   timeRange: {
     start?: string;
     end?: string;
   };
+  unreadTimeRange?: {
+    start?: string;
+    end?: string;
+  };
+  previousContextCount?: number;
   tldr: string;
   keyTopics: string[];
   actionItems: IActionItem[];
@@ -47,4 +53,5 @@ export interface IChatMessage {
   };
   hasMedia: boolean;
   mediaType?: string;
+  isUnread?: boolean;
 }

@@ -260,14 +260,16 @@ export class TelegramBotService {
       const chatInfo = await this.chatProvider.getChatById(chatIdentifier);
       const chatName = chatInfo ? chatInfo.name : chatIdentifier;
       const isGroup = chatInfo ? chatInfo.isGroup : true;
-      const limit = chatInfo && chatInfo.unreadCount > 20
-        ? Math.min(chatInfo.unreadCount + 10, 250)
+      const unreadCount = chatInfo ? chatInfo.unreadCount : 0;
+      const limit = unreadCount > 0
+        ? Math.min(unreadCount + 5, 300)
         : env.DEFAULT_SUMMARY_MESSAGE_LIMIT;
 
       await ctx.api.editMessageText(
         ctx.chat!.id,
         progressMsg.message_id,
         `⏳ *Fetched messages from "${MessageFormatterService.escapeMarkdown(chatName)}".*\n` +
+        (unreadCount > 0 ? `🔴 *Unread count:* ${unreadCount}\n` : `✅ *All messages read*\n`) +
         `🤖 *Summarizing with Mistral AI (${env.MISTRAL_MODEL})...*`,
         { parse_mode: 'Markdown' }
       );
@@ -288,6 +290,7 @@ export class TelegramBotService {
         chatId: chatIdentifier,
         chatName,
         isGroup,
+        unreadCount,
         model: env.MISTRAL_MODEL,
       });
 

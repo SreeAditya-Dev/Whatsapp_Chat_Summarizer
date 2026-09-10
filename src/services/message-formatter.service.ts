@@ -4,20 +4,28 @@ export interface FormattedTranscriptResult {
   transcript: string;
   messageCount: number;
   totalOriginalCount: number;
+  unreadCount: number;
   timeRange: {
     start?: string;
     end?: string;
   };
+  unreadTimeRange?: {
+    start?: string;
+    end?: string;
+  };
+  previousContextCount: number;
   participants: string[];
 }
 
 export class MessageFormatterService {
   /**
    * Format an array of chat messages into a clean, chronological transcript for LLM summarization.
+   * Clearly distinguishes unread messages from previous read context.
    */
   static formatForLLM(
     messages: IChatMessage[],
-    maxCharacters = 60000
+    maxCharacters = 60000,
+    unreadCount = 0
   ): FormattedTranscriptResult {
     // 1. Filter out empty messages
     const validMessages = messages.filter((m) => m.body && m.body.trim().length > 0);
@@ -31,6 +39,8 @@ export class MessageFormatterService {
         transcript: 'No readable text messages found.',
         messageCount: 0,
         totalOriginalCount: 0,
+        unreadCount: 0,
+        previousContextCount: 0,
         timeRange: {},
         participants: [],
       };
@@ -42,9 +52,40 @@ export class MessageFormatterService {
       if (m.senderName) participantsSet.add(m.senderName);
     });
 
-    // 4. Build message lines
+    // 4. Calculate unread boundary
+    const actualUnreadCount = Math.min(Math.max(0, unreadCount), totalOriginalCount);
+    const unreadStartIndex = totalOriginalCount - actualUnreadCount;
+    const previousContextCount = actualUnreadCount > 0 ? unreadStartIndex : 0;
+
+    let unreadTimeRange: { start?: string; end?: string } | undefined;
+    if (actualUnreadCount > 0) {
+      const firstUnread = validMessages[unreadStartIndex];
+      const lastUnread = validMessages[totalOriginalCount - 1];
+      unreadTimeRange = {
+        start: this.formatTimestamp(firstUnread.timestamp),
+        end: this.formatTimestamp(lastUnread.timestamp),
+      };
+    }
+
+    // 5. Build message lines with unread distinction
     const lines: string[] = [];
-    for (const msg of validMessages) {
+    let addedUnreadDivider = false;
+
+    for (let i = 0; i < validMessages.length; i++) {
+      const msg = validMessages[i];
+      const isUnread = actualUnreadCount > 0 && i >= unreadStartIndex;
+
+      if (actualUnreadCount > 0 && i === unreadStartIndex && !addedUnreadDivider) {
+        if (i > 0) {
+          lines.push(`\n=== NEW UNREAD MESSAGES (${actualUnreadCount} UNREAD BELOW) ===`);
+        } else {
+          lines.push(`=== ALL MESSAGES BELOW ARE UNREAD (${actualUnreadCount} UNREAD) ===`);
+        }
+        addedUnreadDivider = true;
+      } else if (actualUnreadCount > 0 && i === 0 && unreadStartIndex > 0) {
+        lines.push(`=== PREVIOUS READ CONTEXT (${previousContextCount} MESSAGES FOR CONTEXT ONLY) ===`);
+      }
+
       const timeStr = this.formatTimestamp(msg.timestamp);
       const sender = msg.senderName || msg.senderNumber || 'Unknown';
 
@@ -58,10 +99,11 @@ export class MessageFormatterService {
       }
 
       const cleanBody = msg.body.replace(/\r\n/g, '\n').trim();
-      lines.push(`[${timeStr}] ${sender}${replyContext}: ${cleanBody}`);
+      const statusTag = isUnread ? '[NEW]' : '[PREVIOUS CONTEXT]';
+      lines.push(`${statusTag} [${timeStr}] ${sender}${replyContext}: ${cleanBody}`);
     }
 
-    // 5. Check if total text exceeds maxCharacters; if so, keep the most recent messages
+    // 6. Check if total text exceeds maxCharacters; if so, keep the most recent messages
     let selectedLines = lines;
     if (lines.join('\n').length > maxCharacters) {
       const reverseSelected: string[] = [];
@@ -77,8 +119,8 @@ export class MessageFormatterService {
       selectedLines = reverseSelected.reverse();
     }
 
-    const firstMsg = validMessages[validMessages.length - selectedLines.length] || validMessages[0];
-    const lastMsg = validMessages[validMessages.length - 1];
+    const firstMsg = validMessages[0];
+    const lastMsg = validMessages[totalOriginalCount - 1];
 
     const timeRange = {
       start: this.formatTimestamp(firstMsg.timestamp),
@@ -86,14 +128,17 @@ export class MessageFormatterService {
     };
 
     let transcript = selectedLines.join('\n');
-    if (selectedLines.length < totalOriginalCount) {
-      transcript = `[NOTE: Showing the latest ${selectedLines.length} messages out of ${totalOriginalCount} total messages due to length]\n\n` + transcript;
+    if (selectedLines.length < lines.length) {
+      transcript = `[NOTE: Showing latest messages due to length limits]\n\n` + transcript;
     }
 
     return {
       transcript,
-      messageCount: selectedLines.length,
+      messageCount: totalOriginalCount,
       totalOriginalCount,
+      unreadCount: actualUnreadCount,
+      unreadTimeRange,
+      previousContextCount,
       timeRange,
       participants: Array.from(participantsSet),
     };
@@ -122,17 +167,26 @@ export class MessageFormatterService {
       CRITICAL: '🔴 Urgent / Critical',
     };
 
-    const header = [
+    const isUnreadFlow = summary.unreadCount > 0;
+
+    const headerLines = [
       `📊 *Chat Summary: ${this.escapeMarkdown(summary.chatName)}*`,
-      `💬 *Analyzed:* ${summary.totalMessagesAnalyzed} messages`,
-      summary.timeRange.start && summary.timeRange.end
+      isUnreadFlow
+        ? `🔴 *Unread Messages:* ${summary.unreadCount} new unread messages`
+        : `✅ *Status:* All messages read (showing last ${summary.totalMessagesAnalyzed} messages)`,
+      isUnreadFlow && summary.unreadTimeRange?.start && summary.unreadTimeRange?.end
+        ? `🕒 *Unread Period:* ${summary.unreadTimeRange.start} → ${summary.unreadTimeRange.end}`
+        : summary.timeRange.start && summary.timeRange.end
         ? `🕒 *Period:* ${summary.timeRange.start} → ${summary.timeRange.end}`
+        : null,
+      isUnreadFlow && summary.previousContextCount && summary.previousContextCount > 0
+        ? `📖 *Preceding Context:* ${summary.previousContextCount} read messages included for reference`
         : null,
       `🚨 *Urgency:* ${urgencyEmojiMap[summary.urgencyLevel] || summary.urgencyLevel}`,
       `━━━━━━━━━━━━━━━━━━━━`,
-    ]
-      .filter(Boolean)
-      .join('\n');
+    ].filter(Boolean);
+
+    const header = headerLines.join('\n');
 
     const tldr = `📌 *TL;DR:*\n${summary.tldr}`;
 

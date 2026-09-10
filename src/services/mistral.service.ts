@@ -29,11 +29,18 @@ export class MistralSummarizerService implements ISummarizer {
       throw new Error('No messages provided to summarize.');
     }
 
-    const { transcript, messageCount, timeRange } = MessageFormatterService.formatForLLM(messages);
+    const {
+      transcript,
+      messageCount,
+      timeRange,
+      unreadTimeRange,
+      unreadCount,
+      previousContextCount,
+    } = MessageFormatterService.formatForLLM(messages, 60000, options.unreadCount);
 
     const modelToUse = options.model || this.defaultModel;
     logger.info(
-      { chatId: options.chatId, messageCount, model: modelToUse },
+      { chatId: options.chatId, messageCount, unreadCount, model: modelToUse },
       'Sending chat transcript to Mistral AI for summarization'
     );
 
@@ -41,11 +48,12 @@ export class MistralSummarizerService implements ISummarizer {
 
 CRITICAL GUIDELINES:
 1. Maintain Context: Keep track of who is talking to whom, especially with replies and discussions.
-2. Filter Noise: Ignore casual banter, greetings, memes, or trivial chatter unless it impacts decisions.
-3. Identify Actions & Tasks: Specifically look for commitments, promises, questions directed at individuals, and assigned tasks.
-4. Detect Decisions: Note what consensus was reached or what was agreed upon.
-5. Extract Dates & Links: Extract any deadlines, calendar dates, meetings, Zoom links, or URLs mentioned.
-6. Urgency Assessment:
+2. Focus on Unread / New Messages: If unread messages are indicated, prioritize summarizing what happened in the new unread segment, using previous read messages only as background context.
+3. Filter Noise: Ignore casual banter, greetings, memes, or trivial chatter unless it impacts decisions.
+4. Identify Actions & Tasks: Specifically look for commitments, promises, questions directed at individuals, and assigned tasks.
+5. Detect Decisions: Note what consensus was reached or what was agreed upon.
+6. Extract Dates & Links: Extract any deadlines, calendar dates, meetings, Zoom links, or URLs mentioned.
+7. Urgency Assessment:
    - "LOW": Casual chit-chat, no action needed.
    - "MEDIUM": Informative updates, minor discussion.
    - "HIGH": Pending questions, action items for team members.
@@ -99,7 +107,10 @@ Please analyze the above conversation and provide the structured summary in the 
         chatName: options.chatName,
         isGroup: options.isGroup,
         totalMessagesAnalyzed: messageCount,
+        unreadCount,
         timeRange,
+        unreadTimeRange,
+        previousContextCount,
         tldr: parsedData.tldr || 'No summary available.',
         keyTopics: parsedData.keyTopics || [],
         actionItems: parsedData.actionItems || [],

@@ -70,6 +70,7 @@ describe('MessageFormatterService', () => {
       chatName: 'Engineering Core',
       isGroup: true,
       totalMessagesAnalyzed: 45,
+      unreadCount: 0,
       timeRange: {
         start: '2026-09-10 09:00',
         end: '2026-09-10 11:30',
@@ -88,10 +89,51 @@ describe('MessageFormatterService', () => {
 
     const md = MessageFormatterService.formatSummaryToMarkdown(mockSummary);
     expect(md).toContain('Engineering Core');
-    expect(md).toContain('45 messages');
+    expect(md).toContain('All messages read');
     expect(md).toContain('TL;DR:');
     expect(md).toContain('Dave');
     expect(md).toContain('PostgreSQL 16 upgrade');
     expect(md).toContain('High');
+  });
+
+  it('should clearly separate unread messages from previous read context', () => {
+    const rawMessages: IChatMessage[] = [
+      {
+        id: 'msg-1',
+        senderName: 'Alice',
+        timestamp: new Date('2026-09-10T10:00:00Z'),
+        body: 'Morning everyone.',
+        isQuoted: false,
+        hasMedia: false,
+      },
+      {
+        id: 'msg-2',
+        senderName: 'Bob',
+        timestamp: new Date('2026-09-10T14:00:00Z'),
+        body: 'Here is the new urgent bug.',
+        isQuoted: false,
+        hasMedia: false,
+      },
+      {
+        id: 'msg-3',
+        senderName: 'Charlie',
+        timestamp: new Date('2026-09-10T14:05:00Z'),
+        body: 'I will investigate right now.',
+        isQuoted: false,
+        hasMedia: false,
+      },
+    ];
+
+    // Suppose there are 2 unread messages (msg-2 and msg-3), and 1 previous read message (msg-1)
+    const result = MessageFormatterService.formatForLLM(rawMessages, 60000, 2);
+
+    expect(result.unreadCount).toBe(2);
+    expect(result.previousContextCount).toBe(1);
+    expect(result.unreadTimeRange?.start).toBe(MessageFormatterService.formatTimestamp(rawMessages[1].timestamp));
+    expect(result.unreadTimeRange?.end).toBe(MessageFormatterService.formatTimestamp(rawMessages[2].timestamp));
+    expect(result.transcript).toContain('PREVIOUS READ CONTEXT');
+    expect(result.transcript).toContain('NEW UNREAD MESSAGES');
+    expect(result.transcript).toContain('[PREVIOUS CONTEXT]');
+    expect(result.transcript).toContain('[NEW]');
   });
 });

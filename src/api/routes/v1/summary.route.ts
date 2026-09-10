@@ -41,8 +41,16 @@ export function createSummaryRouter(
       const chatInfo = await chatProvider.getChatById(chatId);
       const chatName = chatInfo ? chatInfo.name : chatId;
       const isGroup = chatInfo ? chatInfo.isGroup : true;
+      const unreadCount = chatInfo ? chatInfo.unreadCount : 0;
 
-      const messages = await chatProvider.getChatMessages(chatId, messageLimit);
+      const effectiveLimit =
+        req.body.messageLimit !== undefined
+          ? messageLimit
+          : unreadCount > 0
+          ? Math.min(unreadCount + 5, 300)
+          : messageLimit;
+
+      const messages = await chatProvider.getChatMessages(chatId, effectiveLimit);
 
       if (messages.length === 0) {
         res.status(400).json(
@@ -58,6 +66,7 @@ export function createSummaryRouter(
         chatId,
         chatName,
         isGroup,
+        unreadCount,
         model: model || env.MISTRAL_MODEL,
       });
 
