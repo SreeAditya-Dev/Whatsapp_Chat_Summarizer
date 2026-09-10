@@ -143,10 +143,6 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
     });
   }
 
-  getStatus(): ChatProviderStatus {
-    return this.status;
-  }
-
   /**
    * Safely inject in-browser error handling for WWebJS getChats to prevent 'r' exceptions
    */
@@ -401,8 +397,23 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
     };
   }
 
+  getStatus(): ChatProviderStatus {
+    if (this.client?.info && this.status.state !== 'READY') {
+      this.status.state = 'READY';
+      this.status.pushname = this.client.info.pushname;
+      this.status.phoneNumber = this.client.info.wid?.user;
+    }
+    return this.status;
+  }
+
   private ensureReady(): void {
-    if (this.status.state !== 'READY' || !this.client) {
+    if (this.client?.info && this.status.state !== 'READY') {
+      this.status.state = 'READY';
+      this.status.pushname = this.client.info.pushname;
+      this.status.phoneNumber = this.client.info.wid?.user;
+    }
+
+    if (!this.client || (this.status.state !== 'READY' && this.status.state !== 'AUTHENTICATED')) {
       throw new Error(
         `WhatsApp client is not ready. Current state: ${this.status.state}. Please scan the QR code to pair.`
       );
