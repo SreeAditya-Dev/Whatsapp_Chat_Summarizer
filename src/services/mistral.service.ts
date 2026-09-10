@@ -1,0 +1,159 @@
+import { Mistral } from '@mistralai/mistralai';
+import { env } from '../config/env';
+import { ISummarizer, SummarizeOptions } from '../core/interfaces/summarizer.interface';
+import { IChatMessage, IChatSummary, UrgencyLevel } from '../core/types/summary.types';
+import { logger } from '../utils/logger';
+import { MessageFormatterService } from './message-formatter.service';
+
+interface MistralJsonOutput {
+  tldr: string;
+  keyTopics: string[];
+  actionItems: Array<{ task: string; assignee?: string; dueDate?: string }>;
+  decisions: string[];
+  importantLinksAndDates: string[];
+  urgencyLevel: UrgencyLevel;
+}
+
+export class MistralSummarizerService implements ISummarizer {
+  private client: Mistral;
+  private defaultModel: string;
+
+  constructor(apiKey?: string, defaultModel?: string) {
+    const key = apiKey || env.MISTRAL_API_KEY;
+    this.defaultModel = defaultModel || env.MISTRAL_MODEL || 'mistral-small-latest';
+    this.client = new Mistral({ apiKey: key });
+  }
+
+  async summarize(messages: IChatMessage[], options: SummarizeOptions): Promise<IChatSummary> {
+    if (!messages || messages.length === 0) {
+      throw new Error('No messages provided to summarize.');
+    }
+
+    const { transcript, messageCount, timeRange } = MessageFormatterService.formatForLLM(messages);
+
+    const modelToUse = options.model || this.defaultModel;
+    logger.info(
+      { chatId: options.chatId, messageCount, model: modelToUse },
+      'Sending chat transcript to Mistral AI for summarization'
+    );
+
+    const systemPrompt = `You are an expert executive communication assistant. Your task is to analyze WhatsApp chat transcripts (from a group or personal chat) and generate an accurate, comprehensive, context-aware summary.
+
+CRITICAL GUIDELINES:
+1. Maintain Context: Keep track of who is talking to whom, especially with replies and discussions.
+2. Filter Noise: Ignore casual banter, greetings, memes, or trivial chatter unless it impacts decisions.
+3. Identify Actions & Tasks: Specifically look for commitments, promises, questions directed at individuals, and assigned tasks.
+4. Detect Decisions: Note what consensus was reached or what was agreed upon.
+5. Extract Dates & Links: Extract any deadlines, calendar dates, meetings, Zoom links, or URLs mentioned.
+6. Urgency Assessment:
+   - "LOW": Casual chit-chat, no action needed.
+   - "MEDIUM": Informative updates, minor discussion.
+   - "HIGH": Pending questions, action items for team members.
+   - "CRITICAL": Urgent blocker, immediate response requested, or approaching emergency/deadline.
+
+You MUST respond strictly with a valid JSON object matching this schema:
+{
+  "tldr": "A 2 to 3 sentence executive summary capturing the core essence of the conversation.",
+  "keyTopics": ["Key topic 1 with context", "Key topic 2 with context"],
+  "actionItems": [
+    {
+      "task": "Description of the task or commitment",
+      "assignee": "Person responsible if mentioned, or null",
+      "dueDate": "Deadline/timeframe if mentioned, or null"
+    }
+  ],
+  "decisions": ["Decision 1 made by the group", "Decision 2"],
+  "importantLinksAndDates": ["Date/time/link with brief context"],
+  "urgencyLevel": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+}`;
+
+    const userPrompt = `Here is the chat transcript from "${options.chatName}" (${options.isGroup ? 'Group Chat' : 'Personal Chat'}):
+
+--- TRANSCRIPT START ---
+${transcript}
+--- TRANSCRIPT END ---
+
+Please analyze the above conversation and provide the structured summary in the requested JSON format.`;
+
+    try {
+      const response = await this.client.chat.complete({
+        model: modelToUse,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        responseFormat: { type: 'json_object' },
+        temperature: 0.2,
+      });
+
+      const rawContent = response.choices?.[0]?.message?.content;
+      if (!rawContent) {
+        throw new Error('Received empty response from Mistral AI.');
+      }
+
+      const contentString = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
+      const parsedData = this.parseMistralResponse(contentString);
+
+      const summary: IChatSummary = {
+        chatId: options.chatId,
+        chatName: options.chatName,
+        isGroup: options.isGroup,
+        totalMessagesAnalyzed: messageCount,
+        timeRange,
+        tldr: parsedData.tldr || 'No summary available.',
+        keyTopics: parsedData.keyTopics || [],
+        actionItems: parsedData.actionItems || [],
+        decisions: parsedData.decisions || [],
+        importantLinksAndDates: parsedData.importantLinksAndDates || [],
+        urgencyLevel: parsedData.urgencyLevel || 'MEDIUM',
+        rawSummaryMarkdown: '',
+        generatedAt: new Date().toISOString(),
+      };
+
+      summary.rawSummaryMarkdown = MessageFormatterService.formatSummaryToMarkdown(summary);
+      return summary;
+    } catch (error: any) {
+      logger.error({ error: error.message, chatId: options.chatId }, 'Mistral AI summarization failed');
+      throw new Error(`Mistral summarization failed: ${error.message}`);
+    }
+  }
+
+  private parseMistralResponse(content: string): MistralJsonOutput {
+    try {
+      // Remove any possible markdown block wrappers like ```json ... ```
+      const cleaned = content
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+      const parsed = JSON.parse(cleaned);
+
+      const validUrgency: UrgencyLevel[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+      const urgency = validUrgency.includes(parsed.urgencyLevel)
+        ? parsed.urgencyLevel
+        : 'MEDIUM';
+
+      return {
+        tldr: parsed.tldr || '',
+        keyTopics: Array.isArray(parsed.keyTopics) ? parsed.keyTopics : [],
+        actionItems: Array.isArray(parsed.actionItems) ? parsed.actionItems : [],
+        decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
+        importantLinksAndDates: Array.isArray(parsed.importantLinksAndDates)
+          ? parsed.importantLinksAndDates
+          : [],
+        urgencyLevel: urgency,
+      };
+    } catch (err) {
+      logger.warn({ rawContent: content }, 'Failed to parse Mistral JSON output directly, applying fallback');
+      return {
+        tldr: content.slice(0, 300),
+        keyTopics: ['Conversation summarized via fallback parsing.'],
+        actionItems: [],
+        decisions: [],
+        importantLinksAndDates: [],
+        urgencyLevel: 'MEDIUM',
+      };
+    }
+  }
+}
