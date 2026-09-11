@@ -14,6 +14,7 @@ import { createChatsRouter } from './routes/v1/chats.route';
 import { createSummaryRouter } from './routes/v1/summary.route';
 import { createReplyRouter } from './routes/v1/reply.route';
 import { createSettingsRouter } from './routes/v1/settings.route';
+import { createBusinessKBRouter } from './routes/v1/business-kb.route';
 import { createQrPageRouter } from './routes/qr-page.route';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
@@ -107,6 +108,9 @@ export function createExpressApp(
 
   // Settings endpoints (get and update preferences)
   v1Router.use('/settings', apiKeyAuth, createSettingsRouter());
+
+  // Business Knowledge Base endpoints (profile, FAQs, catalog notes, sandbox test)
+  v1Router.use('/business-kb', apiKeyAuth, createBusinessKBRouter(summarizer));
 
   // Mount v1 router under /api/v1
   app.use('/api/v1', v1Router);

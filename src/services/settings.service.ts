@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { logger } from '../utils/logger';
+import { BusinessKnowledgeBase, DEFAULT_BUSINESS_KB, FAQItem } from '../core/types/business-kb.types';
 
 export interface AppSettings {
   summary: {
@@ -16,6 +17,7 @@ export interface AppSettings {
     whitelistMode: 'all' | 'selected';
     allowedChatIds: string[];
   };
+  businessKB: BusinessKnowledgeBase;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -32,6 +34,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     whitelistMode: 'all',
     allowedChatIds: [],
   },
+  businessKB: { ...DEFAULT_BUSINESS_KB },
 };
 
 export interface UpdateAppSettingsDto {
@@ -48,6 +51,7 @@ export interface UpdateAppSettingsDto {
     whitelistMode?: 'all' | 'selected';
     allowedChatIds?: string[];
   };
+  businessKB?: Partial<BusinessKnowledgeBase>;
 }
 
 export class SettingsService {
@@ -71,6 +75,8 @@ export class SettingsService {
               ? !aiReplyParsed.requireReview
               : DEFAULT_SETTINGS.aiReply.autoReply;
 
+        const parsedKB = parsed.businessKB || {};
+
         this.cachedSettings = {
           summary: {
             ...DEFAULT_SETTINGS.summary,
@@ -81,6 +87,15 @@ export class SettingsService {
             ...aiReplyParsed,
             autoReply,
             requireReview: !autoReply,
+          },
+          businessKB: {
+            ...DEFAULT_BUSINESS_KB,
+            ...parsedKB,
+            profile: {
+              ...DEFAULT_BUSINESS_KB.profile,
+              ...(parsedKB.profile || {}),
+            },
+            faqs: Array.isArray(parsedKB.faqs) ? parsedKB.faqs : DEFAULT_BUSINESS_KB.faqs,
           },
         };
         return this.cachedSettings!;
@@ -108,6 +123,18 @@ export class SettingsService {
       requireReview = current.aiReply.requireReview;
     }
 
+    const partialKB = partial.businessKB || {};
+    const updatedKB: BusinessKnowledgeBase = {
+      ...current.businessKB,
+      ...partialKB,
+      profile: {
+        ...current.businessKB.profile,
+        ...(partialKB.profile || {}),
+      },
+      faqs: partialKB.faqs !== undefined ? partialKB.faqs : current.businessKB.faqs,
+      updatedAt: new Date().toISOString(),
+    };
+
     const updated: AppSettings = {
       summary: {
         ...current.summary,
@@ -119,6 +146,7 @@ export class SettingsService {
         autoReply: autoReply ?? true,
         requireReview: requireReview ?? false,
       },
+      businessKB: updatedKB,
     };
 
     try {
@@ -131,6 +159,50 @@ export class SettingsService {
     }
 
     return updated;
+  }
+
+  static getBusinessKB(): BusinessKnowledgeBase {
+    return this.getSettings().businessKB;
+  }
+
+  static updateBusinessKB(partial: Partial<BusinessKnowledgeBase>): BusinessKnowledgeBase {
+    const updated = this.updateSettings({ businessKB: partial });
+    return updated.businessKB;
+  }
+
+  static addFAQ(faq: Omit<FAQItem, 'id' | 'createdAt'>): FAQItem {
+    const current = this.getBusinessKB();
+    const newFaq: FAQItem = {
+      ...faq,
+      id: `faq-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      createdAt: new Date().toISOString(),
+    };
+    this.updateBusinessKB({
+      faqs: [...current.faqs, newFaq],
+    });
+    return newFaq;
+  }
+
+  static updateFAQ(id: string, partial: Partial<FAQItem>): FAQItem | null {
+    const current = this.getBusinessKB();
+    const index = current.faqs.findIndex((f) => f.id === id);
+    if (index === -1) return null;
+
+    const updated = { ...current.faqs[index], ...partial, id };
+    const newFaqs = [...current.faqs];
+    newFaqs[index] = updated;
+
+    this.updateBusinessKB({ faqs: newFaqs });
+    return updated;
+  }
+
+  static deleteFAQ(id: string): boolean {
+    const current = this.getBusinessKB();
+    const newFaqs = current.faqs.filter((f) => f.id !== id);
+    if (newFaqs.length === current.faqs.length) return false;
+
+    this.updateBusinessKB({ faqs: newFaqs });
+    return true;
   }
 
   static isChatAllowedForReply(chatId: string, additionalIdentifiers: string[] = []): boolean {
