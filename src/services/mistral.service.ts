@@ -2,6 +2,7 @@ import { Mistral } from '@mistralai/mistralai';
 import { env } from '../config/env';
 import { ISummarizer, SummarizeOptions } from '../core/interfaces/summarizer.interface';
 import { IActionItem, IChatMessage, IChatSummary, UrgencyLevel } from '../core/types/summary.types';
+import { BusinessKnowledgeBase } from '../core/types/business-kb.types';
 import { logger } from '../utils/logger';
 import { MessageFormatterService } from './message-formatter.service';
 
@@ -270,6 +271,7 @@ Please analyze the above conversation and provide the structured summary in the 
     tone?: 'casual' | 'friendly' | 'professional' | 'concise';
     senderPersona?: string;
     model?: string;
+    businessKB?: BusinessKnowledgeBase;
   }): Promise<{ reply: string; suggestions: string[] }> {
     const modelToUse = options.model || this.defaultModel;
     const tone = options.tone || 'casual';
@@ -280,7 +282,46 @@ Please analyze the above conversation and provide the structured summary in the 
       0
     );
 
-    const systemPrompt = `You are a thoughtful personal assistant drafting a context-aware WhatsApp reply on behalf of the user.
+    const isBusiness = Boolean(options.businessKB && options.businessKB.enabled);
+    let systemPrompt = '';
+
+    if (isBusiness && options.businessKB) {
+      const { profile, faqs, customGuidelines, fallbackMessage, additionalNotes } = options.businessKB;
+      const activeFaqs = faqs.filter((f) => f.enabled);
+
+      systemPrompt = `You are the official customer service assistant for "${profile.businessName || options.chatName}" on WhatsApp.
+${profile.industry ? `Industry: ${profile.industry}` : ''}
+${profile.tagline ? `Tagline: ${profile.tagline}` : ''}
+${profile.operatingHours ? `Operating Hours: ${profile.operatingHours}` : ''}
+${profile.locationOrAddress ? `Location / Office: ${profile.locationOrAddress}` : ''}
+${profile.contactEmail ? `Contact Email: ${profile.contactEmail}` : ''}
+${profile.paymentOrBookingLink ? `Booking / Payment Link: ${profile.paymentOrBookingLink}` : ''}
+
+VERIFIED BUSINESS KNOWLEDGE & FAQS:
+${activeFaqs.map((f, i) => `${i + 1}. Q: "${f.question}" -> A: "${f.answer}" [${f.category}]`).join('\n')}
+
+${additionalNotes ? `ADDITIONAL CATALOG & POLICY NOTES:\n${additionalNotes}\n` : ''}
+
+CHAT CONTEXT:
+Customer: "${options.chatName}" (${options.isGroup ? 'Group Conversation' : 'Direct 1-on-1 Chat'})
+Desired Tone: "${tone}" (casual, friendly, professional, or concise)
+${options.instruction ? `Customer Inquiry / Context: "${options.instruction}"` : ''}
+
+STRICT OPERATIONAL RULES:
+1. FACTUAL ACCURACY: Answer customer questions ONLY using the verified business knowledge, prices, hours, and policies stated above.
+2. ZERO HALLUCINATION: NEVER make up discounts, unlisted service pricing, delivery guarantees, or unauthorized commitments.
+3. UNKNOWN INQUIRY ESCALATION: If the customer asks for something NOT covered in the knowledge base, DO NOT guess or fabricate details. Politely state:
+   "${fallbackMessage || "I'll let the owner know about your request so they can get back to you directly with the details!"}"
+4. WHATSAPP CONCISENESS: Keep answers warm, helpful, and concise (2 to 4 sentences max). Avoid robotic bullet overload.
+5. ${customGuidelines ? `OWNER GUIDELINES: ${customGuidelines}` : ''}
+
+Respond STRICTLY in valid JSON matching this schema:
+{
+  "reply": "The primary response text to send",
+  "suggestions": ["Short alternative 1", "Alternative 2"]
+}`;
+    } else {
+      systemPrompt = `You are a thoughtful personal assistant drafting a context-aware WhatsApp reply on behalf of the user.
 
 CHAT CONTEXT:
 Chat: "${options.chatName}" (${options.isGroup ? 'Group Conversation' : 'Direct 1-on-1 Chat'})
@@ -303,6 +344,7 @@ Respond STRICTLY in valid JSON matching this schema:
   "reply": "The primary response text to send",
   "suggestions": ["Short alternative 1", "Alternative 2"]
 }`;
+    }
 
     const userPrompt = `Here is the recent chat transcript:
 --- TRANSCRIPT START ---

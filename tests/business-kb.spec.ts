@@ -17,7 +17,7 @@ describe('Business Knowledge Base API', () => {
   };
 
   const mockSummarizer: Partial<ISummarizer> = {
-    generateReply: async () => 'Test generated business reply',
+    generateReply: async () => ({ reply: 'Test generated business reply', suggestions: ['Alt 1', 'Alt 2'] }),
   };
 
   beforeEach(() => {

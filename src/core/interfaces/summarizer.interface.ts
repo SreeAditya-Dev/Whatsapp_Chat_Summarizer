@@ -1,4 +1,5 @@
 import { IChatMessage, IChatSummary } from '../types/summary.types';
+import { BusinessKnowledgeBase } from '../types/business-kb.types';
 
 export interface SummarizeOptions {
   chatId: string;
@@ -19,6 +20,7 @@ export interface GenerateReplyOptions {
   tone?: 'casual' | 'friendly' | 'professional' | 'concise';
   senderPersona?: string;
   model?: string;
+  businessKB?: BusinessKnowledgeBase;
 }
 
 export interface ISummarizer {

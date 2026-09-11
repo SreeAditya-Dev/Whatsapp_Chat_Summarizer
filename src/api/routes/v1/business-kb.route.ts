@@ -177,10 +177,13 @@ export function createBusinessKBRouter(summarizer?: ISummarizer): Router {
         );
       }
 
-      // Format customer inquiry as a virtual chat message to test AI reply with KB guardrails
-      const answer = await (summarizer as any).generateBusinessReply?.(question, tone, kb) ??
-        await summarizer.generateReply(
-          [
+      let answerText = '';
+      if (typeof summarizer.generateReply === 'function') {
+        const result = await summarizer.generateReply({
+          chatId: 'test-sandbox',
+          chatName: kb.profile.businessName || 'Customer Inquiry',
+          isGroup: false,
+          messages: [
             {
               id: 'test-inquiry',
               senderName: 'Customer',
@@ -190,18 +193,20 @@ export function createBusinessKBRouter(summarizer?: ISummarizer): Router {
               hasMedia: false,
             },
           ],
-          {
-            chatName: kb.profile.businessName || 'Customer Inquiry',
-            isGroup: false,
-            tone,
-            businessKB: kb,
-          }
-        );
+          tone,
+          instruction: `Answer the customer inquiry directly: "${question}"`,
+          businessKB: { ...kb, enabled: true },
+        });
+        answerText = result.reply;
+      } else {
+        const match = kb.faqs.find((f) => f.enabled && f.question.toLowerCase().includes(question.toLowerCase()));
+        answerText = match ? match.answer : kb.fallbackMessage;
+      }
 
       res.status(200).json(
         ApiResponseHelper.success({
           question,
-          answer,
+          answer: answerText,
           tone,
           businessName: kb.profile.businessName || 'Business Assistant',
         })

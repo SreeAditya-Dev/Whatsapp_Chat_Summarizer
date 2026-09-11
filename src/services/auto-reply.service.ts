@@ -177,6 +177,7 @@ export class AutoReplyService {
           instruction: `Respond naturally to the latest message(s): "${incomingTexts.join(' ')}"`,
           tone: settings.aiReply.defaultTone || 'casual',
           senderPersona: settings.aiReply.customPersona || undefined,
+          businessKB: settings.businessKB?.enabled ? settings.businessKB : undefined,
         });
         replyText = result.reply?.trim() || '';
       } else {

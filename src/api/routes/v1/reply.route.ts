@@ -91,6 +91,7 @@ export function createReplyRouter(
           instruction,
           tone: tone || settings.aiReply.defaultTone || 'casual',
           senderPersona: settings.aiReply.customPersona || undefined,
+          businessKB: settings.businessKB?.enabled ? settings.businessKB : undefined,
         });
       } else {
         result = {
