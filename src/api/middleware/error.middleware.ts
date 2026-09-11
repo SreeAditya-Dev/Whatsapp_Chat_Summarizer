@@ -22,7 +22,19 @@ export function errorHandler(
       : undefined
     : err.details || (err.stack ? { stack: err.stack } : undefined);
 
-  if (statusCode >= 500) {
+  if (statusCode === 503) {
+    // Expected pre-pairing state (WhatsApp not linked yet) — keep it a one-liner, not an exception.
+    logger.warn(
+      {
+        url: req.url,
+        method: req.method,
+        statusCode,
+        code,
+        message,
+      },
+      'Service temporarily unavailable'
+    );
+  } else if (statusCode >= 500) {
     logger.error(
       {
         err: err.message,
