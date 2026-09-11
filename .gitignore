@@ -1,8 +1,10 @@
 # Dependencies
 node_modules/
+frontend/node_modules/
 
 # Build artifacts
 dist/
+frontend/dist/
 
 # Environment files
 .env
@@ -27,3 +29,8 @@ Thumbs.db
 # IDE Files
 .vscode/
 .idea/
+
+# Build cache & test artifacts
+*.tsbuildinfo
+.playwright-mcp/
+*.png

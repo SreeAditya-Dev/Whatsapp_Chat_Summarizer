@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Relay — premium sleek theme
+ * Warm paper neutrals + ink. No neon, no gradients.
+ * Rounded corners everywhere. Soft UI Evolution shadows.
+ */
+:root {
+  --background: 60 9% 98%; /* #fafaf9 warm paper */
+  --foreground: 20 14% 11%; /* #1c1917 ink */
+
+  --card: 0 0% 100%;
+  --card-foreground: 20 14% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14% 11%;
+
+  --primary: 20 14% 11%; /* ink black button */
+  --primary-foreground: 60 9% 98%;
+
+  --secondary: 60 5% 94%; /* #f0efec soft stone */
+  --secondary-foreground: 20 14% 20%;
+
+  --muted: 60 5% 94%;
+  --muted-foreground: 25 5% 42%; /* warm gray, AA contrast */
+
+  --accent: 60 7% 92%;
+  --accent-foreground: 20 14% 14%;
+
+  --border: 30 6% 89%; /* #e7e5e4 */
+  --input: 30 6% 86%;
+  --ring: 20 14% 20%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 142 64% 32%;
+  --success-foreground: 0 0% 100%;
+
+  --warning: 38 92% 45%;
+  --warning-foreground: 20 14% 11%;
+
+  --radius: 1.1rem; /* 17.6px — sleek rounded */
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: 'Sora', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Subtle paper texture via radial dots — solid colors only */
+.app-texture {
+  background-color: hsl(var(--background));
+  background-image: radial-gradient(hsl(30 6% 88% / 0.55) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Thin elegant scrollbars */
+.nice-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(30 6% 80%) transparent;
+}
+.nice-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.nice-scroll::-webkit-scrollbar-thumb {
+  background: hsl(30 6% 80%);
+  border-radius: 999px;
+}
+.nice-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Focus visibility — WCAG AA */
+:focus-visible {
+  outline: 2px solid hsl(var(--foreground));
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

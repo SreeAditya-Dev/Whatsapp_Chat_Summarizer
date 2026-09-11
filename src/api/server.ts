@@ -2,6 +2,8 @@ import express, { Express, Router } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
+import fs from 'fs';
 import { IChatProvider } from '../core/interfaces/chat.interface';
 import { ISummarizer } from '../core/interfaces/summarizer.interface';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
@@ -92,6 +94,16 @@ export function createExpressApp(
 
   // Mount v1 router under /api/v1
   app.use('/api/v1', v1Router);
+
+  // Serve the React frontend (frontend/dist) when built — same-origin, no CORS needed.
+  const frontendDist = path.resolve(process.cwd(), 'frontend', 'dist');
+  if (fs.existsSync(path.join(frontendDist, 'index.html'))) {
+    app.use(express.static(frontendDist, { maxAge: '1h', index: false }));
+    // SPA fallback: anything that isn't /api, /health or /qr renders the dashboard.
+    app.get(/^\/(?!api\/|health|qr(?:\/|$)).*/, (_req, res) => {
+      res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+  }
 
   // Fallback 404 & Global Error Handlers
   app.use(notFoundHandler);

@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:all": "npm run dev & npm --prefix frontend run dev",
     "build": "tsc",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:all": "npm run build && npm --prefix frontend run build",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest"

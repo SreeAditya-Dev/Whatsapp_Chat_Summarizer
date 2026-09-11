@@ -22,10 +22,12 @@ async function bootstrap() {
   if (env.TELEGRAM_BOT_TOKEN) {
     try {
       telegramBot = new TelegramBotService(whatsappService, summarizerService);
-      await telegramBot.start();
-      logger.info('Telegram bot service started successfully.');
+      telegramBot.start().catch((err: any) => {
+        logger.error({ error: err.message }, 'Telegram bot service error');
+      });
+      logger.info('Telegram bot service initialization dispatched.');
     } catch (err: any) {
-      logger.error({ error: err.message }, 'Failed to start Telegram bot service');
+      logger.error({ error: err.message }, 'Failed to initialize Telegram bot service');
     }
   } else {
     logger.warn('TELEGRAM_BOT_TOKEN is not configured. Telegram bot interaction is disabled.');
