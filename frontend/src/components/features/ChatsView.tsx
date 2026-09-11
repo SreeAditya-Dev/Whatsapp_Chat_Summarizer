@@ -6,14 +6,12 @@ import {
   ArrowRightIcon,
   CheckCircle2Icon,
   CheckIcon,
-  CornerDownLeftIcon,
   Loader2Icon,
   MessageSquareIcon,
   QrCodeIcon,
   RefreshCwIcon,
   SearchIcon,
   SendIcon,
-  SettingsIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
   SparklesIcon,
@@ -286,10 +284,16 @@ export function ChatsView({
   };
 
   return (
-    <div className="grid min-w-0 gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
-      {/* Chat list column */}
-      <Card className={cn(selected && 'hidden lg:block')}>
-        <CardHeader className="pb-3">
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] lg:h-full lg:min-h-0 lg:overflow-hidden">
+      {/* Chat list column: stays pinned on desktop, never moves with the page */}
+      <Card
+        className={cn(
+          'flex flex-col min-w-0 overflow-hidden',
+          selected && 'hidden lg:flex',
+          'lg:h-full lg:min-h-0 lg:sticky lg:top-0',
+        )}
+      >
+        <CardHeader className="shrink-0 pb-3">
           <div className="flex items-center justify-between gap-2">
             <div>
               <CardTitle>Chats</CardTitle>
@@ -320,7 +324,7 @@ export function ChatsView({
             </TabsList>
           </Tabs>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-1 min-h-0 flex-col overflow-hidden p-4 pt-0 sm:p-5 sm:pt-0">
           {chatsLoading ? (
             <div className="flex flex-col gap-2.5">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -372,7 +376,7 @@ export function ChatsView({
               }
             />
           ) : (
-            <div className="nice-scroll flex max-h-[62vh] flex-col gap-2 overflow-y-auto pr-0.5 lg:max-h-[68vh]">
+            <div className="nice-scroll flex flex-1 min-h-0 flex-col gap-2 overflow-y-auto pr-0.5">
               {filtered.map((c) => (
                 <ChatListItem key={c.id} chat={c} selected={selected?.id === c.id} onSelect={selectChat} />
               ))}
@@ -382,7 +386,13 @@ export function ChatsView({
       </Card>
 
       {/* Detail column */}
-      <div className={cn('min-w-0', !selected && 'hidden lg:block')}>
+      <div
+        className={cn(
+          'min-w-0',
+          !selected && 'hidden lg:block',
+          selected && 'lg:h-full lg:min-h-0 lg:flex lg:flex-col lg:overflow-hidden',
+        )}
+      >
         {!selected ? (
           isWaNotReady ? (
             <Empty
@@ -406,9 +416,9 @@ export function ChatsView({
             />
           )
         ) : (
-          <div className="flex min-w-0 animate-fade-up flex-col gap-4">
-            {/* Selected Chat Header Card */}
-            <Card className="min-w-0 overflow-hidden">
+          <div className="flex flex-1 min-h-0 animate-fade-up flex-col gap-4 overflow-hidden">
+            {/* Selected Chat Header Card: stays pinned at top of right pane */}
+            <Card className="min-w-0 overflow-hidden shrink-0">
               <CardContent className="flex flex-col gap-4 p-5 min-w-0">
                 <div className="flex items-center gap-3">
                   <Button
@@ -534,9 +544,9 @@ export function ChatsView({
             <Tabs
               value={detailTab}
               onValueChange={(v) => setDetailTab(v as 'summary' | 'reply' | 'messages')}
-              className="min-w-0"
+              className="min-w-0 flex flex-1 min-h-0 flex-col overflow-hidden"
             >
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-3 shrink-0">
                 <TabsTrigger value="summary">Summary</TabsTrigger>
                 <TabsTrigger value="reply" className="gap-1.5">
                   <SparklesIcon className="size-3.5" />
@@ -546,7 +556,7 @@ export function ChatsView({
               </TabsList>
 
               {/* Tab 1: Summary */}
-              <TabsContent value="summary" className="min-w-0 mt-3">
+              <TabsContent value="summary" className="min-w-0 mt-3 flex-1 min-h-0 overflow-y-auto nice-scroll pr-1">
                 {summaryLoading ? (
                   <Card>
                     <CardContent className="flex flex-col gap-3 p-5">
@@ -573,7 +583,7 @@ export function ChatsView({
               </TabsContent>
 
               {/* Tab 2: AI Reply */}
-              <TabsContent value="reply" className="min-w-0 mt-3 flex flex-col gap-4">
+              <TabsContent value="reply" className="min-w-0 mt-3 flex-1 min-h-0 overflow-y-auto nice-scroll pr-1 flex flex-col gap-4">
                 {/* Whitelist or feature status alerts */}
                 {appSettings && !appSettings.aiReply.enabled ? (
                   <Alert variant="warning">
@@ -796,13 +806,13 @@ export function ChatsView({
               </TabsContent>
 
               {/* Tab 3: Messages */}
-              <TabsContent value="messages" className="min-w-0 mt-3">
-                <Card>
-                  <CardHeader>
+              <TabsContent value="messages" className="min-w-0 mt-3 flex-1 min-h-0 overflow-hidden flex flex-col">
+                <Card className="flex flex-1 min-h-0 flex-col overflow-hidden">
+                  <CardHeader className="shrink-0 pb-3">
                     <CardTitle>Recent messages</CardTitle>
                     <CardDescription>Chronological context used for summaries and AI replies.</CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="flex flex-1 min-h-0 flex-col overflow-hidden p-4 pt-0 sm:p-5 sm:pt-0">
                     {messagesLoading ? (
                       <div className="flex flex-col gap-3">
                         {Array.from({ length: 4 }).map((_, i) => (

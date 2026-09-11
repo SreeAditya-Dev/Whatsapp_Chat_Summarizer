@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AlertTriangleIcon } from 'lucide-react';
 import { MobileNav, Sidebar } from '@/components/layout/Nav';
 import { TopBar } from '@/components/layout/TopBar';
@@ -13,9 +13,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { usePolling } from '@/hooks/usePolling';
 import { api } from '@/lib/api';
 import type { ChatInfo, ChatSummary } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isChatsPage = location.pathname === '/chats';
   const [selectedFromOverview, setSelectedFromOverview] = useState<ChatInfo | null>(null);
   const [recentSummaries, setRecentSummaries] = useState<ChatSummary[]>([]);
   const [chatsViewKey, setChatsViewKey] = useState(0);
@@ -101,7 +104,12 @@ export default function App() {
         model={healthPoll.data?.services.ai.model}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-4">
+      <div
+        className={cn(
+          'flex min-w-0 flex-1 flex-col gap-4',
+          isChatsPage && 'lg:h-[calc(100vh-2rem)] lg:max-h-[calc(100vh-2rem)] lg:overflow-hidden',
+        )}
+      >
         <TopBar
           wa={waPoll.data}
           onReload={reloadAll}
@@ -109,7 +117,14 @@ export default function App() {
           onOpenChats={goToChats}
         />
 
-        <main className="mx-auto w-full max-w-7xl min-w-0 flex-1 px-1 pb-28 sm:px-2 lg:pb-10">
+        <main
+          className={cn(
+            'mx-auto w-full max-w-7xl min-w-0 flex-1 px-1',
+            isChatsPage
+              ? 'flex flex-col min-h-0 pb-24 sm:px-2 lg:overflow-hidden lg:pb-0'
+              : 'pb-28 sm:px-2 lg:pb-10',
+          )}
+        >
           {backendDown ? (
             <Alert variant="warning" className="mb-4">
               <AlertTriangleIcon className="size-4" />
@@ -204,7 +219,12 @@ export default function App() {
           </Routes>
           </ErrorBoundary>
 
-          <footer className="mt-8 flex flex-col gap-1 border-t border-border pt-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <footer
+            className={cn(
+              'mt-8 flex flex-col gap-1 border-t border-border pt-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between',
+              isChatsPage && 'lg:hidden',
+            )}
+          >
             <p>Relay · calm WhatsApp summaries · your data stays on your server</p>
             <p>
               {healthPoll.data

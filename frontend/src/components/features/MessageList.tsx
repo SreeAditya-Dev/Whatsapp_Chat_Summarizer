@@ -14,7 +14,7 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
     );
   }
   return (
-    <ol className="nice-scroll flex max-h-[520px] flex-col gap-3 overflow-y-auto pr-1">
+    <ol className="nice-scroll flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto pr-1">
       {messages.map((m) => (
         <li key={m.id} className="flex items-start gap-2.5">
           <Avatar className="size-8 shrink-0">
