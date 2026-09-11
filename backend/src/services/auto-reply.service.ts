@@ -190,7 +190,24 @@ export class AutoReplyService {
       }
 
       // 2. Fetch recent chat conversation for context
-      const messages = await this.chatProvider.getChatMessages(chatId, 15);
+      let messages: IChatMessage[] = [];
+      try {
+        messages = await this.chatProvider.getChatMessages(chatId, 15);
+      } catch (historyErr: any) {
+        logger.debug({ err: historyErr?.message, chatId }, 'Could not fetch history, proceeding with incoming text');
+      }
+
+      // If no history returned, construct context from incoming messages
+      if (messages.length === 0 && incomingTexts.length > 0) {
+        messages = incomingTexts.map((text, idx) => ({
+          id: `incoming-${Date.now()}-${idx}`,
+          senderName: chatName || 'Customer',
+          timestamp: new Date(),
+          body: text,
+          isQuoted: false,
+          hasMedia: false,
+        }));
+      }
 
       // 3. Generate human-like reply with configured tone and persona
       let replyText = '';

@@ -471,22 +471,29 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
   async getChatMessages(chatId: string, limit = 100): Promise<IChatMessage[]> {
     this.ensureReady();
 
-    let targetChat: Chat;
+    let targetChat: Chat | undefined;
     try {
       targetChat = await this.client!.getChatById(chatId);
     } catch (err: any) {
-      logger.debug({ err: err?.message, chatId }, 'Exact chat lookup failed, trying name search fallback');
-      const chats = await this.safeGetChats();
-      const lower = chatId.toLowerCase();
-      const found = chats.find(
-        (c) =>
-          c.name?.toLowerCase().includes(lower) ||
-          (c as any).formattedTitle?.toLowerCase().includes(lower)
-      );
-      if (!found) {
-        throw HttpError.notFound(`Chat not found for identifier: "${chatId}"`, 'CHAT_NOT_FOUND');
+      logger.debug({ err: err?.message, chatId }, 'Exact chat lookup failed, trying JID and name search fallback');
+      try {
+        const chats = await this.safeGetChats();
+        const lower = chatId.toLowerCase();
+        targetChat = chats.find(
+          (c) =>
+            c.id?._serialized === chatId ||
+            c.id?.user === chatId ||
+            c.name?.toLowerCase().includes(lower) ||
+            (c as any).formattedTitle?.toLowerCase().includes(lower)
+        );
+      } catch {
+        // Safe get chats search error ignored
       }
-      targetChat = found;
+    }
+
+    if (!targetChat) {
+      logger.warn({ chatId }, 'Chat not currently indexed in WhatsApp Web store, returning empty message history');
+      return [];
     }
 
     const effectiveLimit = Math.min(Math.max(5, limit), 500);
