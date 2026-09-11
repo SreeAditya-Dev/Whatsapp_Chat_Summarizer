@@ -16,6 +16,7 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
   private status: ChatProviderStatus = {
     state: 'DISCONNECTED',
   };
+  private contactNameCache = new Map<string, string>();
 
   constructor() {
     super();
@@ -254,51 +255,157 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
   }
 
   /**
+   * Search all WhatsApp chats and contacts by name or phone number:
+   * Resolves person names for numbers like "90923 45559"
+   */
+  async searchChats(query: string, limit = 20): Promise<IChatInfo[]> {
+    this.ensureReady();
+    const q = query.trim();
+    if (!q) return [];
+    const lower = q.toLowerCase();
+    const queryDigits = q.replace(/\D/g, '');
+
+    const results: IChatInfo[] = [];
+    const seenIds = new Set<string>();
+
+    // 1. Search existing chats in memory
+    const chats = await this.safeGetChats();
+    for (const c of chats) {
+      if (results.length >= limit) break;
+      const jid = c.id?._serialized;
+      if (!jid || seenIds.has(jid)) continue;
+
+      let matched = false;
+      if (jid.toLowerCase().includes(lower)) matched = true;
+      if (c.name?.toLowerCase().includes(lower)) matched = true;
+      if ((c as any).formattedTitle?.toLowerCase().includes(lower)) matched = true;
+
+      if (queryDigits.length >= 4) {
+        const userDigits = c.id?.user?.replace(/\D/g, '') || '';
+        const nameDigits = c.name ? c.name.replace(/\D/g, '') : '';
+        if (
+          userDigits.includes(queryDigits) ||
+          queryDigits.includes(userDigits) ||
+          userDigits.endsWith(queryDigits) ||
+          queryDigits.endsWith(userDigits) ||
+          nameDigits.includes(queryDigits) ||
+          queryDigits.includes(nameDigits)
+        ) {
+          matched = true;
+        }
+      }
+
+      if (matched) {
+        await this.enrichChatContactName(c);
+        const info = this.mapChatToInfo(c);
+        results.push(info);
+        seenIds.add(jid);
+      }
+    }
+
+    // 2. If limit not reached, search WhatsApp contacts list (phonebook & WhatsApp profiles)
+    if (results.length < limit && typeof this.client!.getContacts === 'function') {
+      try {
+        const contacts = await this.client!.getContacts();
+        for (const contact of contacts) {
+          if (results.length >= limit) break;
+          const cJid = contact.id?._serialized;
+          if (!cJid || seenIds.has(cJid)) continue;
+
+          let matched = false;
+          const cName = contact.name || '';
+          const cPush = contact.pushname || '';
+          const cNumber = contact.number || contact.id?.user || '';
+
+          if (cName.toLowerCase().includes(lower) || cPush.toLowerCase().includes(lower)) {
+            matched = true;
+          }
+
+          if (queryDigits.length >= 4 && cNumber) {
+            const numDigits = cNumber.replace(/\D/g, '');
+            if (
+              numDigits === queryDigits ||
+              numDigits.includes(queryDigits) ||
+              queryDigits.includes(numDigits) ||
+              numDigits.endsWith(queryDigits) ||
+              queryDigits.endsWith(numDigits)
+            ) {
+              matched = true;
+            }
+          }
+
+          if (matched) {
+            const personName = contact.name || contact.pushname || contact.shortName || (cNumber ? `+${cNumber}` : q);
+            results.push({
+              id: cJid,
+              name: personName,
+              isGroup: contact.isGroup || false,
+              unreadCount: 0,
+              phoneNumber: cNumber,
+            });
+            seenIds.add(cJid);
+          }
+        }
+      } catch (err: any) {
+        logger.debug({ err: err?.message }, 'Contacts search fallback skipped');
+      }
+    }
+
+    // 3. If query is a phone number and still no match, query WhatsApp number verification
+    if (results.length === 0 && queryDigits.length >= 7) {
+      const candidates = [queryDigits];
+      if (queryDigits.length === 10) {
+        candidates.push(`91${queryDigits}`); // Default India country code
+      }
+      for (const cand of candidates) {
+        try {
+          const numberId = await this.client!.getNumberId(cand);
+          if (numberId && !seenIds.has(numberId._serialized)) {
+            const jid = numberId._serialized;
+            let personName = `+${numberId.user}`;
+            try {
+              const contact = await this.client!.getContactById(jid);
+              if (contact) {
+                personName = contact.name || contact.pushname || contact.shortName || personName;
+              }
+            } catch {}
+
+            results.push({
+              id: jid,
+              name: personName,
+              isGroup: false,
+              unreadCount: 0,
+              phoneNumber: numberId.user,
+            });
+            seenIds.add(jid);
+            break;
+          }
+        } catch {}
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * Get a specific chat by ID or name
    */
   async getChatById(chatId: string): Promise<IChatInfo | null> {
     this.ensureReady();
 
+    // 1. Direct search using unified chat & contact lookup
+    const searchMatches = await this.searchChats(chatId, 1);
+    if (searchMatches.length > 0) {
+      return searchMatches[0];
+    }
+
     try {
-      // First try exact ID match
       const chat = await this.client!.getChatById(chatId);
-      if (chat) return this.mapChatToInfo(chat);
-    } catch (err: any) {
-      logger.debug({ err: err?.message, chatId }, 'Exact ID lookup failed, trying fallback search');
-    }
-
-    try {
-      // If chatId looks like a pure phone number (no @), try direct contact lookup with @c.us
-      const cleanDigits = chatId.replace(/\D/g, '');
-      if (cleanDigits && !chatId.includes('@')) {
-        try {
-          const directChat = await this.client!.getChatById(`${cleanDigits}@c.us`);
-          if (directChat) return this.mapChatToInfo(directChat);
-        } catch {
-          // Continue to fallback list search
-        }
+      if (chat) {
+        await this.enrichChatContactName(chat);
+        return this.mapChatToInfo(chat);
       }
-
-      const chats = await this.safeGetChats();
-      const lower = chatId.toLowerCase();
-      const queryDigits = chatId.replace(/\D/g, '');
-
-      const matched = chats.find((c) => {
-        const raw = c as any;
-        if (c.id?._serialized?.toLowerCase() === lower) return true;
-        if (c.name?.toLowerCase().includes(lower)) return true;
-        if (raw.formattedTitle?.toLowerCase().includes(lower)) return true;
-        if (queryDigits.length >= 4) {
-          if (c.id?.user?.includes(queryDigits)) return true;
-          if (c.name && c.name.replace(/\D/g, '').includes(queryDigits)) return true;
-        }
-        return false;
-      });
-
-      if (matched) return this.mapChatToInfo(matched);
-    } catch (err: any) {
-      logger.warn({ err: err?.message, chatId }, 'Fallback search failed');
-    }
+    } catch {}
 
     return null;
   }
@@ -475,10 +582,108 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
     }
   }
 
+  /**
+   * Determine the most human-readable name for a chat:
+   * Prioritizes saved address book contact names and WhatsApp profile pushnames over bare phone numbers.
+   */
+  private resolveChatDisplayName(chat: Chat): string {
+    const raw = chat as any;
+
+    if (chat.isGroup) {
+      return chat.name || raw.formattedTitle || 'Unnamed Group';
+    }
+
+    const isPhoneLike = (val?: string): boolean => {
+      if (!val || typeof val !== 'string') return false;
+      const trimmed = val.trim();
+      if (!trimmed) return false;
+      const digits = trimmed.replace(/\D/g, '');
+      if (digits.length >= 7) {
+        const stripped = trimmed.replace(/[\d\s+\-()]/g, '');
+        return stripped.length === 0;
+      }
+      return false;
+    };
+
+    // 1. Check in-memory contactNameCache first
+    const jid = chat.id?._serialized;
+    if (jid && this.contactNameCache.has(jid)) {
+      const cached = this.contactNameCache.get(jid);
+      if (cached && !isPhoneLike(cached)) return cached;
+    }
+
+    // 2. Saved contact name from address book (raw.contact or raw._data)
+    const contactName = raw.contact?.name || raw._data?.name;
+    if (contactName && typeof contactName === 'string' && !isPhoneLike(contactName)) {
+      return contactName.trim();
+    }
+
+    // 3. Chat name if it represents an actual person name (not bare phone digits)
+    if (chat.name && typeof chat.name === 'string' && !isPhoneLike(chat.name)) {
+      return chat.name.trim();
+    }
+
+    // 4. WhatsApp public profile pushname / notifyName
+    const pushName =
+      raw.contact?.pushname ||
+      raw._data?.notifyName ||
+      raw.contact?.shortName ||
+      raw.contact?.verifiedName ||
+      raw._data?.verifiedName;
+    if (pushName && typeof pushName === 'string' && !isPhoneLike(pushName)) {
+      return pushName.trim();
+    }
+
+    // 5. Formatted title if not purely a phone number
+    if (raw.formattedTitle && typeof raw.formattedTitle === 'string' && !isPhoneLike(raw.formattedTitle)) {
+      return raw.formattedTitle.trim();
+    }
+
+    // 6. Fallback to formatted title or phone number with '+'
+    if (chat.name) return chat.name;
+    if (raw.formattedTitle) return raw.formattedTitle;
+    const phone = chat.id?.user;
+    return phone ? `+${phone}` : 'Unnamed Chat';
+  }
+
+  /**
+   * Asynchronously enrich chat with contact pushname/name from WhatsApp
+   */
+  private async enrichChatContactName(chat: Chat): Promise<string | undefined> {
+    if (chat.isGroup) return undefined;
+    const jid = chat.id?._serialized;
+    if (!jid) return undefined;
+
+    if (this.contactNameCache.has(jid)) {
+      return this.contactNameCache.get(jid);
+    }
+
+    try {
+      if (typeof (chat as any).getContact === 'function') {
+        const contact = await (chat as any).getContact();
+        if (contact) {
+          const name = contact.name || contact.pushname || contact.shortName || contact.verifiedName;
+          if (name && typeof name === 'string' && name.trim()) {
+            const digits = name.replace(/\D/g, '');
+            const isPhone = digits.length >= 7 && name.replace(/[\d\s+\-()]/g, '').length === 0;
+            if (!isPhone) {
+              const trimmed = name.trim();
+              this.contactNameCache.set(jid, trimmed);
+              return trimmed;
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore lookup errors
+    }
+    return undefined;
+  }
+
   private mapChatToInfo(chat: Chat): IChatInfo {
     const rawChat = chat as any;
     const phoneNumber = !chat.isGroup && chat.id?.user ? chat.id.user : undefined;
-    const name = chat.name || rawChat.formattedTitle || (phoneNumber ? `+${phoneNumber}` : 'Unnamed Chat');
+    const name = this.resolveChatDisplayName(chat);
     return {
       id: chat.id._serialized,
       name,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangleIcon,
@@ -167,7 +167,60 @@ export function ChatsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtered = chats.filter((c) => {
+  const [remoteSearchResults, setRemoteSearchResults] = useState<ChatInfo[]>([]);
+  const [isSearchingRemote, setIsSearchingRemote] = useState(false);
+
+  useEffect(() => {
+    const trimmed = debouncedQuery.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setRemoteSearchResults([]);
+      setIsSearchingRemote(false);
+      return;
+    }
+
+    let active = true;
+    const searchRemote = async () => {
+      setIsSearchingRemote(true);
+      try {
+        const res = await api.searchChats(trimmed, 20);
+        if (active && res.data) {
+          setRemoteSearchResults(res.data);
+        }
+      } catch {
+        // Keep local filtering on error
+      } finally {
+        if (active) setIsSearchingRemote(false);
+      }
+    };
+
+    void searchRemote();
+    return () => {
+      active = false;
+    };
+  }, [debouncedQuery]);
+
+  // Combine local chats with remote search results, prioritizing real person names over bare phone numbers
+  const combinedChats = useMemo(() => {
+    if (!debouncedQuery.trim()) return chats;
+    const map = new Map<string, ChatInfo>();
+    for (const c of chats) map.set(c.id, c);
+
+    for (const r of remoteSearchResults) {
+      if (!map.has(r.id)) {
+        map.set(r.id, r);
+      } else {
+        const existing = map.get(r.id)!;
+        const isExistingPhone = existing.name.replace(/\D/g, '').length >= 7;
+        const isRemotePhone = r.name.replace(/\D/g, '').length >= 7;
+        if (isExistingPhone && !isRemotePhone) {
+          map.set(r.id, { ...existing, name: r.name, phoneNumber: r.phoneNumber || existing.phoneNumber });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [chats, remoteSearchResults, debouncedQuery]);
+
+  const filtered = combinedChats.filter((c) => {
     if (filter === 'unread' && c.unreadCount === 0) return false;
     if (filter === 'groups' && !c.isGroup) return false;
     if (filter === 'direct' && c.isGroup) return false;
@@ -331,12 +384,16 @@ export function ChatsView({
 
           {/* Search bar */}
           <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            {isSearchingRemote ? (
+              <Loader2Icon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
+            ) : (
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            )}
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search contacts & groups…"
-              className="h-9 rounded-xl pl-9 text-xs"
+              placeholder="Search by name, phone number (e.g. 90923 45559), or group…"
+              className="h-9 rounded-xl pl-9 pr-7 text-xs"
               aria-label="Search chats"
             />
             {query && (

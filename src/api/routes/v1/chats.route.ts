@@ -9,6 +9,7 @@ const chatsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(APP_CONSTANTS.DEFAULT_PAGE),
   limit: z.coerce.number().int().min(1).max(APP_CONSTANTS.MAX_API_LIMIT).default(APP_CONSTANTS.DEFAULT_LIMIT),
   filter: z.enum(['all', 'groups', 'direct']).default('all'),
+  q: z.string().optional(),
 });
 
 const unreadQuerySchema = z.object({
@@ -29,6 +30,26 @@ export function createChatsRouter(chatProvider: IChatProvider): Router {
   const router = Router();
 
   /**
+   * GET /api/v1/chats/search?q=9092345559
+   */
+  router.get('/search', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const q = String(req.query.q || '').trim();
+      const limit = Number(req.query.limit) || 20;
+      if (!q) {
+        return res.json(ApiResponseHelper.success([]));
+      }
+      if (typeof chatProvider.searchChats === 'function') {
+        const results = await chatProvider.searchChats(q, limit);
+        return res.json(ApiResponseHelper.success(results));
+      }
+      return res.json(ApiResponseHelper.success([]));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /**
    * GET /api/v1/chats
    */
   router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -38,7 +59,15 @@ export function createChatsRouter(chatProvider: IChatProvider): Router {
         throw HttpError.badRequest('Invalid query parameters', 'VALIDATION_ERROR', parsed.error.issues);
       }
 
-      const { page, limit, filter } = parsed.data;
+      const { page, limit, filter, q } = parsed.data;
+
+      if (q && q.trim()) {
+        if (typeof chatProvider.searchChats === 'function') {
+          const results = await chatProvider.searchChats(q.trim(), limit);
+          return res.json(ApiResponseHelper.success(results));
+        }
+      }
+
       const result = await chatProvider.getRecentChats({ page, limit }, filter as ChatFilterType);
       res.json(ApiResponseHelper.success(result.items, result.pagination));
     } catch (err) {

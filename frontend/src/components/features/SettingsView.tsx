@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
@@ -168,7 +168,63 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
     return false;
   };
 
-  const filteredChats = chats.filter((c) => {
+  const [remoteSearchResults, setRemoteSearchResults] = useState<ChatInfo[]>([]);
+  const [isSearchingRemote, setIsSearchingRemote] = useState(false);
+
+  useEffect(() => {
+    const trimmed = chatSearch.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setRemoteSearchResults([]);
+      setIsSearchingRemote(false);
+      return;
+    }
+
+    let active = true;
+    const searchRemote = async () => {
+      setIsSearchingRemote(true);
+      try {
+        const res = await api.searchChats(trimmed, 20);
+        if (active && res.data) {
+          setRemoteSearchResults(res.data);
+        }
+      } catch {
+        // Fallback
+      } finally {
+        if (active) setIsSearchingRemote(false);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      void searchRemote();
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [chatSearch]);
+
+  const combinedChats = useMemo(() => {
+    if (!chatSearch.trim()) return chats;
+    const map = new Map<string, ChatInfo>();
+    for (const c of chats) map.set(c.id, c);
+
+    for (const r of remoteSearchResults) {
+      if (!map.has(r.id)) {
+        map.set(r.id, r);
+      } else {
+        const existing = map.get(r.id)!;
+        const isExistingPhone = existing.name.replace(/\D/g, '').length >= 7;
+        const isRemotePhone = r.name.replace(/\D/g, '').length >= 7;
+        if (isExistingPhone && !isRemotePhone) {
+          map.set(r.id, { ...existing, name: r.name, phoneNumber: r.phoneNumber || existing.phoneNumber });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [chats, remoteSearchResults, chatSearch]);
+
+  const filteredChats = combinedChats.filter((c) => {
     if (!matchesChatQuery(c, chatSearch)) return false;
     const allowed = isChatWhitelisted(c);
     if (whitelistFilter === 'whitelisted' && !allowed) return false;

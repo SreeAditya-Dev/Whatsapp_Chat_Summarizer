@@ -21,6 +21,7 @@ class MockChatProvider implements IChatProvider {
     { id: 'chat-2', name: 'Product Design', isGroup: true, unreadCount: 0 },
     { id: 'chat-3', name: 'Sarah Connor', isGroup: false, unreadCount: 4, phoneNumber: '919876543210' },
     { id: 'chat-4', name: 'DevOps Alerts', isGroup: true, unreadCount: 230 },
+    { id: 'chat-5', name: 'Praveen Kumar', isGroup: false, unreadCount: 0, phoneNumber: '919092345559' },
   ];
 
   private ensureReady(): void {
@@ -51,7 +52,50 @@ class MockChatProvider implements IChatProvider {
 
   async getChatById(chatId: string): Promise<IChatInfo | null> {
     this.ensureReady();
-    return this.chats.find((c) => c.id === chatId || c.name === chatId) || null;
+    const qDigits = chatId.replace(/\D/g, '');
+    return (
+      this.chats.find((c) => {
+        if (c.id === chatId || c.name.toLowerCase().includes(chatId.toLowerCase())) return true;
+        if (qDigits.length >= 5 && c.phoneNumber) {
+          const pDigits = c.phoneNumber.replace(/\D/g, '');
+          if (
+            pDigits.length >= 5 &&
+            (pDigits.includes(qDigits) ||
+              qDigits.includes(pDigits) ||
+              pDigits.endsWith(qDigits) ||
+              qDigits.endsWith(pDigits))
+          ) {
+            return true;
+          }
+        }
+        return false;
+      }) || null
+    );
+  }
+
+  async searchChats(query: string, limit = 20): Promise<IChatInfo[]> {
+    this.ensureReady();
+    const q = query.toLowerCase();
+    const qDigits = query.replace(/\D/g, '');
+    return this.chats
+      .filter((c) => {
+        if (c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)) return true;
+        if (c.phoneNumber && c.phoneNumber.includes(q)) return true;
+        if (qDigits.length >= 4 && c.phoneNumber) {
+          const pDigits = c.phoneNumber.replace(/\D/g, '');
+          if (
+            pDigits.length >= 4 &&
+            (pDigits.includes(qDigits) ||
+              qDigits.includes(pDigits) ||
+              pDigits.endsWith(qDigits) ||
+              qDigits.endsWith(pDigits))
+          ) {
+            return true;
+          }
+        }
+        return false;
+      })
+      .slice(0, limit);
   }
 
   async getChatMessages(chatId: string, limit = 100): Promise<IChatMessage[]> {
@@ -144,8 +188,8 @@ describe('Express REST API (v1)', () => {
     expect(res.body.pagination).toBeDefined();
     expect(res.body.pagination.page).toBe(1);
     expect(res.body.pagination.limit).toBe(2);
-    expect(res.body.pagination.total).toBe(4);
-    expect(res.body.pagination.totalPages).toBe(2);
+    expect(res.body.pagination.total).toBe(5);
+    expect(res.body.pagination.totalPages).toBe(3);
     expect(res.body.pagination.hasNextPage).toBe(true);
   });
 
@@ -320,6 +364,22 @@ describe('Express REST API (v1)', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.tldr).toBeDefined();
+  });
+
+  it('GET /api/v1/chats/search should return person name when searching by number 90923 45559', async () => {
+    // Search by user query with spaces "90923 45559"
+    const res = await request(app).get('/api/v1/chats/search?q=90923%2045559');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    expect(res.body.data[0].name).toBe('Praveen Kumar');
+    expect(res.body.data[0].phoneNumber).toBe('919092345559');
+
+    // Also verify GET /api/v1/chats/9092345559 resolves by number
+    const byIdRes = await request(app).get('/api/v1/chats/9092345559');
+    expect(byIdRes.status).toBe(200);
+    expect(byIdRes.body.data.name).toBe('Praveen Kumar');
   });
 });
 

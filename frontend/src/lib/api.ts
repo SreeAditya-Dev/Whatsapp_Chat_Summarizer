@@ -58,6 +58,11 @@ export const api = {
       `/api/v1/chats/${encodeURIComponent(chatId)}`,
     ),
 
+  searchChats: (query: string, limit = 20) =>
+    request<import('./types').ApiEnvelope<import('./types').ChatInfo[]>>(
+      `/api/v1/chats/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+    ),
+
   messages: (chatId: string, limit = 50) =>
     request<import('./types').ApiEnvelope<import('./types').ChatMessage[]>>(
       `/api/v1/chats/${encodeURIComponent(chatId)}/messages?limit=${limit}`,

@@ -73,20 +73,24 @@ export function matchesChatQuery(chat: ChatInfo, query: string): boolean {
   // 3. Direct phone number match
   if (chat.phoneNumber && chat.phoneNumber.toLowerCase().includes(q)) return true;
 
-  // 4. Digits-only normalized matching
+  // 4. Digits-only normalized matching (handles spaces, dashes, country code differences)
   const queryDigits = q.replace(/\D/g, '');
   if (queryDigits.length >= 3) {
-    if (chat.phoneNumber) {
-      const phoneDigits = chat.phoneNumber.replace(/\D/g, '');
-      if (phoneDigits.includes(queryDigits)) return true;
-    }
+    const chatDigitsCandidates = [
+      chat.phoneNumber ? chat.phoneNumber.replace(/\D/g, '') : '',
+      chat.id ? chat.id.replace(/\D/g, '') : '',
+      chat.name ? chat.name.replace(/\D/g, '') : '',
+    ].filter(Boolean);
 
-    const idDigits = chat.id.replace(/\D/g, '');
-    if (idDigits.includes(queryDigits)) return true;
-
-    if (chat.name) {
-      const nameDigits = chat.name.replace(/\D/g, '');
-      if (nameDigits.includes(queryDigits)) return true;
+    for (const d of chatDigitsCandidates) {
+      if (
+        d.includes(queryDigits) ||
+        queryDigits.includes(d) ||
+        d.endsWith(queryDigits) ||
+        queryDigits.endsWith(d)
+      ) {
+        return true;
+      }
     }
   }
 
