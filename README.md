@@ -30,28 +30,37 @@ An intelligent, modular service that solves WhatsApp message overload (such as 2
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ System Architecture (HLD + LLD)
+
+<p align="center">
+  <img src="assets/architecture-diagram.jpg" alt="WhatsApp AI Summarizer & Auto-Reply System Architecture" width="100%" />
+</p>
 
 ```
-                    ┌─────────────────────────┐
-                    │    User (Telegram UI)   │
-                    └────────────┬────────────┘
-                                 │
-                     Telegram Bot (grammY)
-                                 │
-    ┌────────────────────────────┼───────────────────────────┐
-    │                            ▼                           │
-    │                   Application Core                     │
-    │        (Orchestration & Message Preprocessing)         │
-    │         ▲                                    ▲         │
-    │         │                                    │         │
-    │   WhatsApp Web                           Mistral AI    │
-    │   (whatsapp-web.js)                   (@mistralai)     │
-    │         ▲                                    ▲         │
-    └─────────┼────────────────────────────────────┼─────────┘
-              │                                    │
-              ▼                                    ▼
-       WhatsApp Servers                     Mistral Cloud API
+       ┌─────────────────────────┐
+       │   React Web Dashboard   │◄─── (Tailwind + Lucide UI + Vite)
+       │  Telegram Bot (grammY)  │◄─── (/summarize, /unread, /status)
+       │   WhatsApp Web Client   │◄─── (Incoming customer/group messages)
+       └────────────┬────────────┘
+                    │ REST API / WebSocket Events
+                    ▼
+       ┌─────────────────────────────────────────────────────────────┐
+       │             BACKEND ENGINE (Node.js + Express 5)            │
+       │                                                             │
+       │  • REST API Controllers (/chats, /summarize, /reply, /kb)   │
+       │  • WhatsApp Web.js Engine (Puppeteer/Chromium + LocalAuth)  │
+       │  • Auto-Reply Engine (Debounced queue + Whitelist Guard)    │
+       └──────────────┬──────────────────────────────┬───────────────┘
+                      │                              │
+         Atomic SQL   │                              │ LLM Inference
+         Read / Write │                              │ Prompts & Synthesis
+                      ▼                              ▼
+        ┌──────────────────────────┐    ┌───────────────────────────┐
+        │  SQLite Database (data.db│    │      Mistral AI Cloud     │
+        │  • app_settings          │    │     (open-mistral-nemo)   │
+        │  • business_profile      │    │  • Multi-message summary  │
+        │  • business_faqs (CRUD)  │    │  • Contextual FAQ replies │
+        └──────────────────────────┘    └───────────────────────────┘
 ```
 
 ---
