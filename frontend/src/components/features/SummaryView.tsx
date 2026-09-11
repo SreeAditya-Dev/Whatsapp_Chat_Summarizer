@@ -56,30 +56,38 @@ function Section({
 }
 
 export function SummaryView({ summary }: { summary: ChatSummary }) {
+  // AI payloads are untrusted — normalize so a null array can never crash the view.
+  const keyTopics = Array.isArray(summary.keyTopics) ? summary.keyTopics : [];
+  const actionItems = Array.isArray(summary.actionItems) ? summary.actionItems : [];
+  const decisions = Array.isArray(summary.decisions) ? summary.decisions : [];
+  const linksAndDates = Array.isArray(summary.importantLinksAndDates)
+    ? summary.importantLinksAndDates
+    : [];
+
   return (
-    <div className="flex animate-fade-up flex-col gap-5">
-      {/* TL;DR hero — solid ink, no gradient */}
-      <Card className="overflow-hidden border-stone-900 bg-stone-900 text-stone-50">
-        <CardHeader className="pb-3">
+    <div className="flex animate-fade-up flex-col gap-4">
+      {/* TL;DR — light premium card */}
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border bg-secondary/50 pb-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="bg-white/10 text-white">
-              <SparklesIcon data-icon="inline-start" className="size-3.5" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-2.5 py-1 text-xs font-semibold text-white">
+              <SparklesIcon className="size-3.5" />
               TL;DR
-            </Badge>
+            </span>
             <Badge variant={urgencyVariant(summary.urgencyLevel)}>{summary.urgencyLevel}</Badge>
-            <span className="ml-auto text-xs text-stone-400">
+            <span className="ml-auto text-xs text-muted-foreground">
               {summary.totalMessagesAnalyzed} messages analyzed
             </span>
           </div>
-          <CardTitle className="text-balance text-[17px] font-bold leading-snug sm:text-lg">
+          <CardTitle className="text-balance pt-1 text-[17px] font-bold leading-snug sm:text-lg">
             {summary.tldr}
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-stone-300">
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-muted-foreground">
             {summary.timeRange?.start ? <span>From {summary.timeRange.start}</span> : null}
             {summary.timeRange?.end ? <span>To {summary.timeRange.end}</span> : null}
-            <span>{new Date(summary.generatedAt).toLocaleString()}</span>
+            <span>{summary.generatedAt ? new Date(summary.generatedAt).toLocaleString() : ''}</span>
           </div>
         </CardContent>
       </Card>
@@ -89,17 +97,17 @@ export function SummaryView({ summary }: { summary: ChatSummary }) {
           <CardTitle>Key topics</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
-          <Section icon={MessagesSquareIcon} title="Discussion" count={summary.keyTopics.length}>
-            {summary.keyTopics.length === 0 ? (
+          <Section icon={MessagesSquareIcon} title="Discussion" count={keyTopics.length}>
+            {keyTopics.length === 0 ? (
               <p className="text-sm text-muted-foreground">No distinct topics detected.</p>
             ) : (
               <ul className="flex flex-col gap-2">
-                {summary.keyTopics.map((t, i) => (
+                {keyTopics.map((t, i) => (
                   <li
                     key={i}
-                    className="flex items-start gap-2.5 rounded-xl bg-stone-50 px-3.5 py-2.5 text-sm leading-relaxed"
+                    className="flex items-start gap-2.5 rounded-xl bg-secondary/60 px-3.5 py-2.5 text-sm leading-relaxed"
                   >
-                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-stone-400" />
+                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-zinc-400" />
                     {t}
                   </li>
                 ))}
@@ -107,12 +115,12 @@ export function SummaryView({ summary }: { summary: ChatSummary }) {
             )}
           </Section>
           <Separator />
-          <Section icon={ListChecksIcon} title="Action items" count={summary.actionItems.length}>
-            {summary.actionItems.length === 0 ? (
+          <Section icon={ListChecksIcon} title="Action items" count={actionItems.length}>
+            {actionItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nothing assigned — inbox zero energy.</p>
             ) : (
               <ul className="flex flex-col gap-2">
-                {summary.actionItems.map((a, i) => (
+                {actionItems.map((a, i) => (
                   <li key={i} className="rounded-xl border border-border p-3.5">
                     <p className="text-sm font-medium leading-relaxed">{a.task}</p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -130,14 +138,14 @@ export function SummaryView({ summary }: { summary: ChatSummary }) {
             )}
           </Section>
           <Separator />
-          <Section icon={CheckCircle2Icon} title="Decisions" count={summary.decisions.length}>
-            {summary.decisions.length === 0 ? (
+          <Section icon={CheckCircle2Icon} title="Decisions" count={decisions.length}>
+            {decisions.length === 0 ? (
               <p className="text-sm text-muted-foreground">No firm decisions recorded.</p>
             ) : (
               <ul className="flex flex-col gap-2">
-                {summary.decisions.map((d, i) => (
+                {decisions.map((d, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm leading-relaxed">
-                    <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-emerald-800" />
+                    <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-emerald-700" />
                     {d}
                   </li>
                 ))}
@@ -148,14 +156,14 @@ export function SummaryView({ summary }: { summary: ChatSummary }) {
           <Section
             icon={Link2Icon}
             title="Links & dates"
-            count={summary.importantLinksAndDates.length}
+            count={linksAndDates.length}
           >
-            {summary.importantLinksAndDates.length === 0 ? (
+            {linksAndDates.length === 0 ? (
               <p className="text-sm text-muted-foreground">No links or dates flagged.</p>
             ) : (
               <ul className="flex flex-col gap-1.5">
-                {summary.importantLinksAndDates.map((l, i) => (
-                  <li key={i} className="truncate text-sm text-stone-700" title={l}>
+                {linksAndDates.map((l, i) => (
+                  <li key={i} className="truncate text-sm text-zinc-700" title={l}>
                     {l}
                   </li>
                 ))}

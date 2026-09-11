@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AlertTriangleIcon } from 'lucide-react';
 import { MobileNav, Sidebar } from '@/components/layout/Nav';
 import { TopBar } from '@/components/layout/TopBar';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OverviewView } from '@/components/features/OverviewView';
 import { ChatsView } from '@/components/features/ChatsView';
 import { ConnectView } from '@/components/features/ConnectView';
@@ -123,6 +124,7 @@ export default function App() {
             </Alert>
           ) : null}
 
+          <ErrorBoundary>
           <Routes>
             <Route
               path="/"
@@ -195,6 +197,7 @@ export default function App() {
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </ErrorBoundary>
 
           <footer className="mt-8 flex flex-col gap-1 border-t border-border pt-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <p>Relay · calm WhatsApp summaries · your data stays on your server</p>
