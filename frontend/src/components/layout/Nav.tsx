@@ -43,9 +43,11 @@ export function Sidebar({
           onClick={() => navigate('/')}
           className="flex cursor-pointer items-center gap-2.5 rounded-xl p-2 text-left transition-colors hover:bg-accent"
         >
-          <span className="flex size-9 items-center justify-center rounded-xl bg-zinc-900 text-white">
-            <SparklesIcon className="size-4" />
-          </span>
+          <img
+            src="/logo.jpg"
+            alt="Relay"
+            className="size-9 shrink-0 rounded-xl object-cover shadow-sm ring-1 ring-border/50"
+          />
           <span className="flex min-w-0 flex-col leading-tight">
             <span className="font-display text-sm font-bold tracking-tight">Relay</span>
             <span className="truncate text-xs text-muted-foreground">WhatsApp summaries</span>

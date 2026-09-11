@@ -31,9 +31,11 @@ export function TopBar({
     <header className="sticky top-4 z-30">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 rounded-xl border border-border bg-card/90 px-4 py-2.5 shadow-soft backdrop-blur">
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-zinc-900 text-white lg:hidden">
-            <SparklesIcon className="size-4" />
-          </span>
+          <img
+            src="/logo.jpg"
+            alt="Relay"
+            className="size-8 shrink-0 rounded-lg object-cover shadow-sm ring-1 ring-border/50 lg:hidden"
+          />
           <div className="min-w-0">
             <h2 className="font-display truncate text-[15px] font-semibold tracking-tight sm:text-base">
               {meta.title}
