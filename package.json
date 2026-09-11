@@ -1,19 +1,25 @@
 {
-  "name": "whatsapp_chat_summarizer",
+  "name": "whatsapp-chat-summarizer-workspace",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "WhatsApp Chat Summarizer & AI Reply System",
+  "main": "backend/dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "npm --prefix backend run dev",
+    "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
-    "dev:all": "npm run dev & npm --prefix frontend run dev",
-    "build": "tsc",
+    "dev:all": "npm run dev:backend & npm run dev:frontend",
+    "build": "npm --prefix backend run build",
+    "build:backend": "npm --prefix backend run build",
     "build:frontend": "npm --prefix frontend run build",
-    "build:all": "npm run build && npm --prefix frontend run build",
-    "start": "node dist/index.js",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "build:all": "npm run build:backend && npm run build:frontend",
+    "start": "npm --prefix backend start",
+    "test": "npm --prefix backend test",
+    "test:watch": "npm --prefix backend run test:watch"
   },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SreeAditya-Dev/Whatsapp_Chat_Summarizer.git"
@@ -21,7 +27,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/SreeAditya-Dev/Whatsapp_Chat_Summarizer/issues"
   },

@@ -55,7 +55,13 @@ export interface UpdateAppSettingsDto {
 }
 
 export class SettingsService {
-  private static filePath = path.resolve(process.cwd(), '.settings.json');
+  private static filePath = (() => {
+    const cwdFile = path.resolve(process.cwd(), '.settings.json');
+    if (fs.existsSync(cwdFile)) return cwdFile;
+    const parentFile = path.resolve(process.cwd(), '..', '.settings.json');
+    if (fs.existsSync(parentFile)) return parentFile;
+    return cwdFile;
+  })();
   private static cachedSettings: AppSettings | null = null;
 
   static getSettings(): AppSettings {

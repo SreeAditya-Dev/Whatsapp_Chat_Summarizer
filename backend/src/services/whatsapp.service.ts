@@ -1,5 +1,6 @@
 import EventEmitter from 'events';
 import fs from 'fs';
+import path from 'path';
 import { Client, LocalAuth, Message, Chat } from 'whatsapp-web.js';
 import qrcodeTerminal from 'qrcode-terminal';
 import QRCode from 'qrcode';
@@ -61,7 +62,11 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
 
     this.client = new Client({
       authStrategy: new LocalAuth({
-        dataPath: '.wwebjs_auth',
+        dataPath: fs.existsSync(path.resolve(process.cwd(), '.wwebjs_auth'))
+          ? path.resolve(process.cwd(), '.wwebjs_auth')
+          : fs.existsSync(path.resolve(process.cwd(), '..', '.wwebjs_auth'))
+            ? path.resolve(process.cwd(), '..', '.wwebjs_auth')
+            : path.resolve(process.cwd(), '.wwebjs_auth'),
       }),
       puppeteer: {
         headless: env.HEADLESS,

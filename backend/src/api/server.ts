@@ -116,7 +116,9 @@ export function createExpressApp(
   app.use('/api/v1', v1Router);
 
   // Serve the React frontend (frontend/dist) when built — same-origin, no CORS needed.
-  const frontendDist = path.resolve(process.cwd(), 'frontend', 'dist');
+  const frontendDist = fs.existsSync(path.resolve(process.cwd(), 'frontend', 'dist'))
+    ? path.resolve(process.cwd(), 'frontend', 'dist')
+    : path.resolve(process.cwd(), '..', 'frontend', 'dist');
   if (fs.existsSync(path.join(frontendDist, 'index.html'))) {
     app.use(express.static(frontendDist, { maxAge: '1h', index: false }));
     // SPA fallback: anything that isn't /api, /health or /qr renders the dashboard.
