@@ -92,7 +92,7 @@ export default function App() {
 
   return (
     <div className="app-texture min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1440px] gap-4 px-4 py-4 lg:px-5">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1600px] gap-4 px-4 py-4 lg:px-5">
       <Sidebar
         wa={waPoll.data}
         unread={totalUnread}
@@ -107,7 +107,7 @@ export default function App() {
           onOpenChats={goToChats}
         />
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-1 pb-28 sm:px-2 lg:pb-10">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-1 pb-28 sm:px-2 lg:pb-10">
           {backendDown ? (
             <Alert variant="warning" className="mb-4">
               <AlertTriangleIcon className="size-4" />

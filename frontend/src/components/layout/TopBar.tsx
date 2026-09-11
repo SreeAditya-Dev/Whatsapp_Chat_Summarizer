@@ -27,7 +27,7 @@ export function TopBar({
   const meta = TITLES[location.pathname] ?? TITLES['/'];
   return (
     <header className="sticky top-4 z-30">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 rounded-xl border border-border bg-card/90 px-4 py-2.5 shadow-soft backdrop-blur">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 rounded-xl border border-border bg-card/90 px-4 py-2.5 shadow-soft backdrop-blur">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="flex size-8 items-center justify-center rounded-lg bg-zinc-900 text-white lg:hidden">
             <SparklesIcon className="size-4" />

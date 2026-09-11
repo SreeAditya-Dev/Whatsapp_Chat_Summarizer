@@ -66,43 +66,41 @@ export function OverviewView({
               </span>
             )}
           </div>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex min-w-0 max-w-2xl flex-col gap-2">
-              <h1 className="font-display text-balance text-[22px] font-bold leading-[1.15] tracking-tight sm:text-[26px]">
-                {totalUnread > 0
-                  ? `Catch up on ${totalUnread} messages in seconds.`
-                  : 'Your inbox is calm. Stay that way.'}
-              </h1>
-              <p className="text-balance text-sm leading-relaxed text-zinc-400">
-                Relay reads the noise, keeps who-said-what straight, and hands you decisions,
-                owners, and next steps — private, on your own server.
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
-              {connected ? (
-                <>
-                  <Button
-                    className="bg-white text-zinc-900 hover:bg-zinc-200"
-                    onClick={onReviewUnread}
-                  >
-                    Review unread
-                    <ArrowRightIcon data-icon="inline-end" />
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="bg-white/10 text-white hover:bg-white/20"
-                    onClick={onBrowseChats}
-                  >
-                    Browse all chats
-                  </Button>
-                </>
-              ) : (
-                <Button className="bg-white text-zinc-900 hover:bg-zinc-200" onClick={onConnect}>
-                  Connect WhatsApp
+          <div className="flex min-w-0 max-w-2xl flex-col gap-2">
+            <h1 className="font-display text-balance text-[22px] font-bold leading-[1.15] tracking-tight sm:text-[26px]">
+              {totalUnread > 0
+                ? `Catch up on ${totalUnread} messages in seconds.`
+                : 'Your inbox is calm. Stay that way.'}
+            </h1>
+            <p className="text-balance text-sm leading-relaxed text-zinc-400">
+              Relay reads the noise, keeps who-said-what straight, and hands you decisions,
+              owners, and next steps — private, on your own server.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {connected ? (
+              <>
+                <Button
+                  className="bg-white text-zinc-900 hover:bg-zinc-200"
+                  onClick={onReviewUnread}
+                >
+                  Review unread
                   <ArrowRightIcon data-icon="inline-end" />
                 </Button>
-              )}
-            </div>
+                <Button
+                  variant="secondary"
+                  className="bg-white/10 text-white hover:bg-white/20"
+                  onClick={onBrowseChats}
+                >
+                  Browse all chats
+                </Button>
+              </>
+            ) : (
+              <Button className="bg-white text-zinc-900 hover:bg-zinc-200" onClick={onConnect}>
+                Connect WhatsApp
+                <ArrowRightIcon data-icon="inline-end" />
+              </Button>
+            )}
           </div>
           <p className="text-xs text-zinc-500">
             Private by design{health?.services.ai.model ? ` · ${health.services.ai.model}` : ''}
@@ -129,9 +127,9 @@ export function OverviewView({
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
         {/* Unread preview */}
-        <Card>
+        <Card className="xl:col-span-3">
           <CardHeader className="flex-row items-center justify-between gap-2 pb-3">
             <div>
               <CardTitle>Needs your attention</CardTitle>
@@ -172,7 +170,7 @@ export function OverviewView({
         </Card>
 
         {/* Recent summaries + how it works */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 xl:col-span-2">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle>Recent summaries</CardTitle>
