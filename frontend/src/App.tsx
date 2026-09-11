@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AlertTriangleIcon } from 'lucide-react';
-import { MobileNav, Sidebar, type ViewKey } from '@/components/layout/Nav';
+import { MobileNav, Sidebar } from '@/components/layout/Nav';
 import { TopBar } from '@/components/layout/TopBar';
 import { OverviewView } from '@/components/features/OverviewView';
 import { ChatsView } from '@/components/features/ChatsView';
@@ -12,7 +13,7 @@ import { api } from '@/lib/api';
 import type { ChatInfo, ChatSummary } from '@/lib/types';
 
 export default function App() {
-  const [view, setView] = useState<ViewKey>('overview');
+  const navigate = useNavigate();
   const [selectedFromOverview, setSelectedFromOverview] = useState<ChatInfo | null>(null);
   const [recentSummaries, setRecentSummaries] = useState<ChatSummary[]>([]);
   const [chatsViewKey, setChatsViewKey] = useState(0);
@@ -67,130 +68,147 @@ export default function App() {
 
   const goToChats = useCallback(() => {
     setChatsViewKey((k) => k + 1);
-    setView('chats');
+    navigate('/chats');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  }, [navigate]);
+
+  const goToConnect = useCallback(() => {
+    navigate('/connect');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [navigate]);
 
   const handleSelectChat = useCallback(
     (chat: ChatInfo) => {
       setSelectedFromOverview(chat);
       setChatsViewKey((k) => k + 1);
-      setView('chats');
+      navigate('/chats');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
-    [],
+    [navigate],
   );
 
   const backendDown =
     !healthPoll.loading && !healthPoll.data && !!healthPoll.error && !!chatsPoll.error;
 
   return (
-    <div className="app-texture min-h-screen">
-      <div className="mx-auto flex min-h-screen max-w-[1440px] lg:gap-0">
-        <Sidebar
-          view={view}
-          onNavigate={setView}
+    <div className="app-texture min-h-screen bg-background text-foreground">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1440px] gap-4 px-4 py-4 lg:px-5">
+      <Sidebar
+        wa={waPoll.data}
+        unread={totalUnread}
+        model={healthPoll.data?.services.ai.model}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col gap-4">
+        <TopBar
           wa={waPoll.data}
-          unread={totalUnread}
-          model={healthPoll.data?.services.ai.model}
+          onReload={reloadAll}
+          refreshing={chatsPoll.refreshing || waPoll.refreshing}
+          onOpenChats={goToChats}
         />
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar
-            view={view}
-            wa={waPoll.data}
-            onReload={reloadAll}
-            refreshing={chatsPoll.refreshing || waPoll.refreshing}
-            onOpenChats={goToChats}
-          />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-1 pb-28 sm:px-2 lg:pb-10">
+          {backendDown ? (
+            <Alert variant="warning" className="mb-4">
+              <AlertTriangleIcon className="size-4" />
+              <div>
+                <AlertTitle>Backend isn&apos;t reachable</AlertTitle>
+                <AlertDescription>
+                  Start it with <code className="rounded bg-stone-200 px-1">npm run dev</code> (port
+                  3000). The dashboard will reconnect automatically — or run the frontend with{' '}
+                  <code className="rounded bg-stone-200 px-1">VITE_API_URL</code> pointed at your
+                  server.
+                </AlertDescription>
+              </div>
+            </Alert>
+          ) : null}
 
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-4 sm:px-6 sm:pt-6 lg:pb-12">
-            {backendDown ? (
-              <Alert variant="warning" className="mb-4">
-                <AlertTriangleIcon className="size-4" />
-                <div>
-                  <AlertTitle>Backend isn&apos;t reachable</AlertTitle>
-                  <AlertDescription>
-                    Start it with <code className="rounded bg-stone-200 px-1">npm run dev</code> (port
-                    3000). The dashboard will reconnect automatically — or run the frontend with{' '}
-                    <code className="rounded bg-stone-200 px-1">VITE_API_URL</code> pointed at your
-                    server.
-                  </AlertDescription>
-                </div>
-              </Alert>
-            ) : null}
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <OverviewView
+                  health={healthPoll.data}
+                  healthLoading={healthPoll.loading}
+                  wa={waPoll.data}
+                  chats={chats}
+                  chatsLoading={chatsPoll.loading}
+                  totalUnread={totalUnread}
+                  unreadChats={unreadChats}
+                  recentSummaries={recentSummaries}
+                  onReviewUnread={goToChats}
+                  onBrowseChats={goToChats}
+                  onConnect={goToConnect}
+                  onSelectChat={handleSelectChat}
+                  onReload={reloadAll}
+                />
+              }
+            />
+            <Route path="/overview" element={<Navigate to="/" replace />} />
+            <Route
+              path="/chats"
+              element={
+                <ChatsView
+                  key={chatsViewKey}
+                  chats={chats}
+                  chatsLoading={chatsPoll.loading}
+                  chatsError={chatsPoll.error}
+                  onReloadChats={() => {
+                    chatsPoll.reload();
+                    unreadPoll.reload();
+                  }}
+                  totalUnread={totalUnread}
+                  recentSummaries={recentSummaries}
+                  initialSelected={selectedFromOverview}
+                  wa={waPoll.data}
+                  onConnect={goToConnect}
+                  onSummarized={(s) =>
+                    setRecentSummaries((prev) =>
+                      [s, ...prev.filter((p) => p.chatId !== s.chatId)].slice(0, 8),
+                    )
+                  }
+                />
+              }
+            />
+            <Route
+              path="/connect"
+              element={
+                <ConnectView
+                  wa={waPoll.data}
+                  waLoading={waPoll.loading}
+                  waError={waPoll.error}
+                  qrDataUrl={qrDataUrl}
+                  qrLoading={qrPoll.loading && !qrDataUrl}
+                  onReload={reloadAll}
+                />
+              }
+            />
+            <Route
+              path="/system"
+              element={
+                <SystemView
+                  health={healthPoll.data}
+                  healthLoading={healthPoll.loading}
+                  wa={waPoll.data}
+                />
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
 
-            {view === 'overview' ? (
-              <OverviewView
-                health={healthPoll.data}
-                healthLoading={healthPoll.loading}
-                wa={waPoll.data}
-                chats={chats}
-                chatsLoading={chatsPoll.loading}
-                totalUnread={totalUnread}
-                unreadChats={unreadChats}
-                recentSummaries={recentSummaries}
-                onReviewUnread={goToChats}
-                onBrowseChats={goToChats}
-                onConnect={() => setView('connect')}
-                onSelectChat={handleSelectChat}
-                onReload={reloadAll}
-              />
-            ) : null}
-
-            {view === 'chats' ? (
-              <ChatsView
-                key={chatsViewKey}
-                chats={chats}
-                chatsLoading={chatsPoll.loading}
-                chatsError={chatsPoll.error}
-                onReloadChats={() => {
-                  chatsPoll.reload();
-                  unreadPoll.reload();
-                }}
-                totalUnread={totalUnread}
-                recentSummaries={recentSummaries}
-                initialSelected={selectedFromOverview}
-                onSummarized={(s) =>
-                  setRecentSummaries((prev) =>
-                    [s, ...prev.filter((p) => p.chatId !== s.chatId)].slice(0, 8),
-                  )
-                }
-              />
-            ) : null}
-
-            {view === 'connect' ? (
-              <ConnectView
-                wa={waPoll.data}
-                waLoading={waPoll.loading}
-                waError={waPoll.error}
-                qrDataUrl={qrDataUrl}
-                qrLoading={qrPoll.loading && !qrDataUrl}
-                onReload={reloadAll}
-              />
-            ) : null}
-
-            {view === 'system' ? (
-              <SystemView
-                health={healthPoll.data}
-                healthLoading={healthPoll.loading}
-                wa={waPoll.data}
-              />
-            ) : null}
-
-            <footer className="mt-8 flex flex-col gap-1 border-t border-border pt-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-              <p>Relay · calm WhatsApp summaries · your data stays on your server</p>
-              <p>
-                {healthPoll.data
-                  ? `v${healthPoll.data.version} · ${healthPoll.data.services.ai.model}`
-                  : 'Connecting to backend…'}
-              </p>
-            </footer>
-          </main>
-        </div>
+          <footer className="mt-8 flex flex-col gap-1 border-t border-border pt-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <p>Relay · calm WhatsApp summaries · your data stays on your server</p>
+            <p>
+              {healthPoll.data
+                ? `v${healthPoll.data.version} · ${healthPoll.data.services.ai.model}`
+                : 'Connecting to backend…'}
+            </p>
+          </footer>
+        </main>
       </div>
 
-      <MobileNav view={view} onNavigate={setView} unread={totalUnread} />
+      <MobileNav unread={totalUnread} />
+      </div>
     </div>
   );
 }

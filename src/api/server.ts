@@ -13,6 +13,7 @@ import { createWhatsAppRouter } from './routes/v1/whatsapp.route';
 import { createChatsRouter } from './routes/v1/chats.route';
 import { createSummaryRouter } from './routes/v1/summary.route';
 import { createQrPageRouter } from './routes/qr-page.route';
+import { env } from '../config/env';
 import { logger } from '../utils/logger';
 
 export function createExpressApp(
@@ -41,9 +42,12 @@ export function createExpressApp(
   });
 
   // Rate Limiting
+  const isDev = env.NODE_ENV !== 'production';
+
   const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 200, // max 200 requests per 15 minutes per IP
+    max: isDev ? 10000 : 1000, // relaxed for dashboard polling
+    skip: (req) => isDev || req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1',
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -55,7 +59,7 @@ export function createExpressApp(
 
   const summarizeLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    max: 15, // max 15 summarize requests per minute to prevent AI cost exhaustion
+    max: isDev ? 60 : 15, // max summarize requests per minute to prevent AI cost exhaustion
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -67,7 +71,8 @@ export function createExpressApp(
 
   const qrLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 30, // max 30 QR requests per minute
+    max: isDev ? 500 : 60,
+    skip: () => isDev,
     standardHeaders: true,
     legacyHeaders: false,
   });

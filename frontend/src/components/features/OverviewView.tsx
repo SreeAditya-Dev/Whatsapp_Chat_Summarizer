@@ -46,41 +46,49 @@ export function OverviewView({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Hero — solid ink card, no gradients */}
-      <Card className="overflow-hidden border-stone-900 bg-stone-900 text-stone-50">
-        <CardContent className="flex flex-col gap-5 p-6 sm:p-8 lg:flex-row lg:items-center">
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="bg-white/10 text-white">
-                <SparklesIcon data-icon="inline-start" className="size-3.5" />
-                WhatsApp intelligence
-              </Badge>
-              <Badge variant={connected ? 'success' : 'warning'}>
-                {connected ? 'WhatsApp connected' : 'Connect WhatsApp'}
-              </Badge>
+      {/* Hero — compact ink banner */}
+      <Card className="overflow-hidden border-zinc-900 bg-zinc-900 text-zinc-50">
+        <CardContent className="flex flex-col gap-4 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white">
+              <SparklesIcon className="size-3.5" />
+              WhatsApp intelligence
+            </span>
+            {connected ? (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-300">
+                <span className="size-1.5 rounded-full bg-emerald-400" />
+                Connected{wa?.pushname ? ` · ${wa.pushname}` : ''}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-300">
+                <span className="size-1.5 rounded-full bg-amber-400" />
+                Not connected
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex min-w-0 max-w-2xl flex-col gap-2">
+              <h1 className="font-display text-balance text-[22px] font-bold leading-[1.15] tracking-tight sm:text-[26px]">
+                {totalUnread > 0
+                  ? `Catch up on ${totalUnread} messages in seconds.`
+                  : 'Your inbox is calm. Stay that way.'}
+              </h1>
+              <p className="text-balance text-sm leading-relaxed text-zinc-400">
+                Relay reads the noise, keeps who-said-what straight, and hands you decisions,
+                owners, and next steps — private, on your own server.
+              </p>
             </div>
-            <h1 className="font-display text-balance text-2xl font-semibold leading-tight tracking-tight sm:text-[32px] sm:leading-[1.15]">
-              {totalUnread > 0
-                ? `Catch up on ${totalUnread} messages in seconds.`
-                : 'Your inbox is calm. Stay that way.'}
-            </h1>
-            <p className="max-w-xl text-balance text-sm leading-relaxed text-stone-300 sm:text-[15px]">
-              Relay reads the noise, keeps who-said-what straight, and hands you decisions, owners,
-              and next steps — private, on your own server.
-            </p>
-            <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
               {connected ? (
                 <>
                   <Button
-                    size="lg"
-                    className="bg-white text-stone-900 hover:bg-stone-200"
+                    className="bg-white text-zinc-900 hover:bg-zinc-200"
                     onClick={onReviewUnread}
                   >
                     Review unread
                     <ArrowRightIcon data-icon="inline-end" />
                   </Button>
                   <Button
-                    size="lg"
                     variant="secondary"
                     className="bg-white/10 text-white hover:bg-white/20"
                     onClick={onBrowseChats}
@@ -89,25 +97,16 @@ export function OverviewView({
                   </Button>
                 </>
               ) : (
-                <Button size="lg" className="bg-white text-stone-900 hover:bg-stone-200" onClick={onConnect}>
+                <Button className="bg-white text-zinc-900 hover:bg-zinc-200" onClick={onConnect}>
                   Connect WhatsApp
                   <ArrowRightIcon data-icon="inline-end" />
                 </Button>
               )}
             </div>
           </div>
-          <div className="grid shrink-0 grid-cols-3 gap-2.5 lg:w-[320px] lg:grid-cols-1">
-            {[
-              { k: 'Unread', v: String(totalUnread) },
-              { k: 'Chats tracked', v: String(chats.length) },
-              { k: 'AI model', v: health?.services.ai.model ?? '…' },
-            ].map((s) => (
-              <div key={s.k} className="rounded-2xl bg-white/[0.07] px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-stone-400">{s.k}</p>
-                <p className="truncate font-display text-lg font-semibold">{s.v}</p>
-              </div>
-            ))}
-          </div>
+          <p className="text-xs text-zinc-500">
+            Private by design{health?.services.ai.model ? ` · ${health.services.ai.model}` : ''}
+          </p>
         </CardContent>
       </Card>
 
@@ -123,7 +122,7 @@ export function OverviewView({
             <StatCard
               label="Uptime"
               value={health ? formatUptime(health.uptimeSeconds) : '—'}
-              hint={`${health?.memoryUsageMb ?? '—'} MB · ${health?.environment ?? ''}`}
+              hint={health ? `v${health.version} · ${health.memoryUsageMb} MB` : 'Connecting…'}
               icon={ActivityIcon}
             />
           </>

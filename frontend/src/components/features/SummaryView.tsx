@@ -71,7 +71,7 @@ export function SummaryView({ summary }: { summary: ChatSummary }) {
               {summary.totalMessagesAnalyzed} messages analyzed
             </span>
           </div>
-          <CardTitle className="text-balance text-lg font-semibold leading-snug sm:text-xl">
+          <CardTitle className="text-balance text-[17px] font-bold leading-snug sm:text-lg">
             {summary.tldr}
           </CardTitle>
         </CardHeader>

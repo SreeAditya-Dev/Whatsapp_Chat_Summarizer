@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeftIcon, Loader2Icon, RefreshCwIcon, SearchIcon, SparklesIcon } from 'lucide-react';
+import { ArrowLeftIcon, ArrowRightIcon, Loader2Icon, QrCodeIcon, RefreshCwIcon, SearchIcon, SparklesIcon } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import { SummaryView } from '@/components/features/SummaryView';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { api } from '@/lib/api';
 import { avatarTone, initials } from '@/lib/format';
-import type { ChatFilter, ChatInfo, ChatMessage, ChatSummary } from '@/lib/types';
+import type { ChatFilter, ChatInfo, ChatMessage, ChatSummary, WhatsAppStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface ChatsViewProps {
@@ -28,6 +28,8 @@ interface ChatsViewProps {
   recentSummaries: ChatSummary[];
   onSummarized: (s: ChatSummary) => void;
   initialSelected?: ChatInfo | null;
+  wa?: WhatsAppStatus | null;
+  onConnect?: () => void;
 }
 
 export function ChatsView({
@@ -38,12 +40,26 @@ export function ChatsView({
   totalUnread,
   initialSelected,
   onSummarized,
+  wa,
+  onConnect,
 }: ChatsViewProps) {
   const [filter, setFilter] = useState<ChatFilter>('all');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, 250);
   const [selected, setSelected] = useState<ChatInfo | null>(null);
   const [detailTab, setDetailTab] = useState('summary');
+
+  const isWaNotReady =
+    !wa ||
+    (wa.state !== 'READY' && wa.state !== 'AUTHENTICATED') ||
+    Boolean(
+      chatsError &&
+        (chatsError.includes('QR_READY') ||
+          chatsError.includes('not ready') ||
+          chatsError.includes('scan the QR') ||
+          chatsError.includes('INITIALIZING') ||
+          chatsError.includes('DISCONNECTED')),
+    );
 
   const [summary, setSummary] = useState<ChatSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -172,6 +188,30 @@ export function ChatsView({
                 </div>
               ))}
             </div>
+          ) : isWaNotReady ? (
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 text-center">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-amber-500/15 text-amber-800 dark:text-amber-200">
+                <QrCodeIcon className="size-5" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <h3 className="font-display text-sm font-semibold text-stone-900 dark:text-stone-100">
+                  WhatsApp Not Connected
+                </h3>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Chats will appear here once you pair your phone. Scan the QR code in the Connect tab to link securely.
+                </p>
+              </div>
+              <div className="mt-1 flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
+                <Button size="sm" onClick={onConnect} className="gap-2">
+                  <QrCodeIcon className="size-3.5" />
+                  Pair with QR Code
+                </Button>
+                <Button size="sm" variant="outline" onClick={onReloadChats}>
+                  <RefreshCwIcon className="size-3.5" />
+                  Retry
+                </Button>
+              </div>
+            </div>
           ) : chatsError ? (
             <Alert variant="danger">
               <AlertTitle>Couldn&apos;t load chats</AlertTitle>
@@ -199,11 +239,27 @@ export function ChatsView({
       {/* Detail column */}
       <div className={cn(!selected && 'hidden lg:block')}>
         {!selected ? (
-          <Empty
-            title="Pick a chat to begin"
-            description="Choose any conversation on the left — then generate a calm, structured summary in one tap."
-            className="h-full min-h-[420px]"
-          />
+          isWaNotReady ? (
+            <Empty
+              title="Pair WhatsApp to see conversations"
+              description="Relay keeps your messages private on your server. Scan the QR code once to link your phone and enable one-click AI summaries."
+              icon={<QrCodeIcon className="size-6 text-stone-700 dark:text-stone-300" />}
+              action={
+                <Button onClick={onConnect} size="lg" className="gap-2">
+                  <QrCodeIcon className="size-4" />
+                  Go to Connect
+                  <ArrowRightIcon className="size-4" />
+                </Button>
+              }
+              className="h-full min-h-[420px]"
+            />
+          ) : (
+            <Empty
+              title="Pick a chat to begin"
+              description="Choose any conversation on the left — then generate a calm, structured summary in one tap."
+              className="h-full min-h-[420px]"
+            />
+          )
         ) : (
           <div className="flex animate-fade-up flex-col gap-4">
             <Card>

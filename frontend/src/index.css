@@ -3,35 +3,34 @@
 @tailwind utilities;
 
 /*
- * Relay — premium sleek theme
- * Warm paper neutrals + ink. No neon, no gradients.
- * Rounded corners everywhere. Soft UI Evolution shadows.
+ * Relay — premium SaaS theme
+ * Flat neutral canvas, ink accents, soft tints. No neon, no gradients.
  */
 :root {
-  --background: 60 9% 98%; /* #fafaf9 warm paper */
-  --foreground: 20 14% 11%; /* #1c1917 ink */
+  --background: 220 14% 96%; /* #f3f4f6 — clean flat canvas */
+  --foreground: 240 6% 10%; /* #17171c ink */
 
   --card: 0 0% 100%;
-  --card-foreground: 20 14% 11%;
+  --card-foreground: 240 6% 10%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 20 14% 11%;
+  --popover-foreground: 240 6% 10%;
 
-  --primary: 20 14% 11%; /* ink black button */
-  --primary-foreground: 60 9% 98%;
+  --primary: 240 6% 10%; /* ink black button */
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 60 5% 94%; /* #f0efec soft stone */
-  --secondary-foreground: 20 14% 20%;
+  --secondary: 220 13% 93%; /* #ebedf0 */
+  --secondary-foreground: 240 6% 18%;
 
-  --muted: 60 5% 94%;
-  --muted-foreground: 25 5% 42%; /* warm gray, AA contrast */
+  --muted: 220 13% 93%;
+  --muted-foreground: 220 9% 44%; /* slate gray, AA contrast */
 
-  --accent: 60 7% 92%;
-  --accent-foreground: 20 14% 14%;
+  --accent: 220 13% 92%;
+  --accent-foreground: 240 6% 12%;
 
-  --border: 30 6% 89%; /* #e7e5e4 */
-  --input: 30 6% 86%;
-  --ring: 20 14% 20%;
+  --border: 220 13% 89%; /* #dfe3e8 */
+  --input: 220 13% 84%;
+  --ring: 240 6% 24%;
 
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
@@ -42,7 +41,7 @@
   --warning: 38 92% 45%;
   --warning-foreground: 20 14% 11%;
 
-  --radius: 1.1rem; /* 17.6px — sleek rounded */
+  --radius: 0.625rem; /* 10px base — crisp SaaS scale (card 18px, button 10px) */
 }
 
 * {
@@ -51,27 +50,33 @@
 
 html {
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
+  font-optical-sizing: auto;
+  letter-spacing: -0.006em;
   min-height: 100vh;
 }
 
 .font-display {
-  font-family: 'Sora', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.02em;
 }
 
-/* Subtle paper texture via radial dots — solid colors only */
+/* Aligned tabular figures for stats, timers, counts */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Flat canvas — premium SaaS uses solid color, no texture */
 .app-texture {
   background-color: hsl(var(--background));
-  background-image: radial-gradient(hsl(30 6% 88% / 0.55) 1px, transparent 1px);
-  background-size: 22px 22px;
 }
 
 /* Thin elegant scrollbars */
