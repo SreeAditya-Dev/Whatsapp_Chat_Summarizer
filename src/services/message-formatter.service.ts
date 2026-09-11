@@ -177,7 +177,7 @@ export class MessageFormatterService {
         : `✅ *Status:* All messages read (showing last ${summary.totalMessagesAnalyzed} messages)`,
       isUnreadFlow && summary.unreadTimeRange?.start && summary.unreadTimeRange?.end
         ? `🕒 *Unread Period:* ${summary.unreadTimeRange.start} → ${summary.unreadTimeRange.end}`
-        : summary.timeRange.start && summary.timeRange.end
+        : summary.timeRange?.start && summary.timeRange?.end
         ? `🕒 *Period:* ${summary.timeRange.start} → ${summary.timeRange.end}`
         : null,
       isUnreadFlow && summary.previousContextCount && summary.previousContextCount > 0
@@ -259,7 +259,7 @@ export class MessageFormatterService {
         : `✅ <b>Status:</b> All messages read (showing last ${summary.totalMessagesAnalyzed} messages)`,
       isUnreadFlow && summary.unreadTimeRange?.start && summary.unreadTimeRange?.end
         ? `🕒 <b>Unread Period:</b> ${escapeHtml(summary.unreadTimeRange.start)} → ${escapeHtml(summary.unreadTimeRange.end)}`
-        : summary.timeRange.start && summary.timeRange.end
+        : summary.timeRange?.start && summary.timeRange?.end
         ? `🕒 <b>Period:</b> ${escapeHtml(summary.timeRange.start)} → ${escapeHtml(summary.timeRange.end)}`
         : null,
       isUnreadFlow && summary.previousContextCount && summary.previousContextCount > 0
@@ -331,7 +331,7 @@ export class MessageFormatterService {
         : `Status: All messages read (${summary.totalMessagesAnalyzed} messages)`,
       isUnreadFlow && summary.unreadTimeRange?.start && summary.unreadTimeRange?.end
         ? `Unread Period: ${summary.unreadTimeRange.start} -> ${summary.unreadTimeRange.end}`
-        : summary.timeRange.start && summary.timeRange.end
+        : summary.timeRange?.start && summary.timeRange?.end
         ? `Period: ${summary.timeRange.start} -> ${summary.timeRange.end}`
         : null,
       `Urgency: ${summary.urgencyLevel}`,

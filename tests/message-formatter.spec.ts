@@ -202,5 +202,35 @@ describe('MessageFormatterService', () => {
     expect(plain).toContain('TL;DR:');
     expect(plain).toContain('All bugs resolved.');
   });
+
+  it('should safely format summaries when keyTopics or decisions contain nested objects', () => {
+    const summaryWithNestedObjects: any = {
+      chatId: 'test-group@g.us',
+      chatName: 'Engineering',
+      isGroup: true,
+      totalMessagesAnalyzed: 12,
+      unreadCount: 0,
+      tldr: 'Architecture discussion concluded.',
+      keyTopics: [
+        { topic: 'Database Migration', context: 'Moving to PG16 on Friday' },
+        'Standard string topic',
+      ],
+      actionItems: [{ task: { action: 'Verify backup', owner: 'Alice' } }],
+      decisions: [{ decision: 'Switch to PG16', rationale: 'Better performance' }],
+      importantLinksAndDates: [{ link: 'https://postgres.org', date: '2026-09-12' }],
+      urgencyLevel: 'MEDIUM',
+      rawSummaryMarkdown: '',
+      generatedAt: '2026-09-10T12:00:00Z',
+    };
+
+    const text = MessageFormatterService.formatSummaryToPlainText(summaryWithNestedObjects);
+    expect(text).toContain('Database Migration');
+    expect(text).toContain('Moving to PG16 on Friday');
+    expect(text).toContain('Standard string topic');
+
+    const html = MessageFormatterService.formatSummaryToHtml(summaryWithNestedObjects);
+    expect(html).toContain('Database Migration');
+    expect(html).toContain('Moving to PG16 on Friday');
+  });
 });
 

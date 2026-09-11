@@ -204,10 +204,18 @@ export function OverviewView({
                         </Badge>
                       </div>
                       <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
-                        {s.tldr}
+                        {typeof s.tldr === 'string'
+                          ? s.tldr
+                          : typeof s.tldr === 'object' && s.tldr !== null
+                            ? String(
+                                (s.tldr as Record<string, unknown>).summary ||
+                                (s.tldr as Record<string, unknown>).tldr ||
+                                JSON.stringify(s.tldr)
+                              )
+                            : String(s.tldr || '')}
                       </p>
                       <p className="mt-1.5 text-xs text-muted-foreground">
-                        {s.totalMessagesAnalyzed} msgs · {new Date(s.generatedAt).toLocaleTimeString()}
+                        {s.totalMessagesAnalyzed} msgs · {s.generatedAt ? new Date(s.generatedAt).toLocaleTimeString() : ''}
                       </p>
                     </li>
                   ))}

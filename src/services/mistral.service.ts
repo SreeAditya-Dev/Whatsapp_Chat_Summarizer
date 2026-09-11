@@ -73,7 +73,9 @@ You MUST respond strictly with a valid JSON object matching this schema:
   "decisions": ["Decision 1 made by the group", "Decision 2"],
   "importantLinksAndDates": ["Date/time/link with brief context"],
   "urgencyLevel": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
-}`;
+}
+
+IMPORTANT: "keyTopics", "decisions", and "importantLinksAndDates" MUST be arrays of plain strings (e.g. ["Topic: Context"]), NOT nested objects.`;
 
     const userPrompt = `Here is the chat transcript from "${options.chatName}" (${options.isGroup ? 'Group Chat' : 'Personal Chat'}):
 
@@ -145,13 +147,76 @@ Please analyze the above conversation and provide the structured summary in the 
         ? parsed.urgencyLevel
         : 'MEDIUM';
 
+      const normalizeString = (item: unknown): string => {
+        if (typeof item === 'string') return item.trim();
+        if (typeof item === 'number' || typeof item === 'boolean') return String(item);
+        if (item === null || item === undefined) return '';
+        if (typeof item === 'object') {
+          const obj = item as Record<string, unknown>;
+          if (obj.topic && obj.context) return `${obj.topic}: ${obj.context}`;
+          if (obj.topic) return String(obj.topic);
+          if (obj.decision && obj.context) return `${obj.decision}: ${obj.context}`;
+          if (obj.decision) return String(obj.decision);
+          if (obj.task) return obj.assignee ? `${obj.task} (${obj.assignee})` : String(obj.task);
+          const entries = Object.entries(obj)
+            .filter(([_, v]) => v !== null && v !== undefined && typeof v !== 'object')
+            .map(([k, v]) => `${k}: ${v}`);
+          if (entries.length > 0) return entries.join(', ');
+          return JSON.stringify(item);
+        }
+        return String(item);
+      };
+
+      const normalizeActionItems = (items: unknown[]): IActionItem[] => {
+        return items
+          .map((a) => {
+            if (typeof a === 'string') {
+              return { task: a, assignee: undefined, dueDate: undefined };
+            }
+            if (a && typeof a === 'object') {
+              const obj = a as Record<string, unknown>;
+              const task =
+                typeof obj.task === 'string'
+                  ? obj.task
+                  : obj.task
+                    ? normalizeString(obj.task)
+                    : obj.action || obj.description || normalizeString(obj);
+              const assignee =
+                typeof obj.assignee === 'string'
+                  ? obj.assignee
+                  : obj.owner
+                    ? String(obj.owner)
+                    : undefined;
+              const dueDate =
+                typeof obj.dueDate === 'string'
+                  ? obj.dueDate
+                  : obj.deadline || obj.due || obj.date
+                    ? String(obj.deadline || obj.due || obj.date)
+                    : undefined;
+              return {
+                task: task ? String(task) : 'Unspecified task',
+                assignee: assignee || undefined,
+                dueDate: dueDate || undefined,
+              };
+            }
+            return null;
+          })
+          .filter((a): a is IActionItem => a !== null && Boolean(a.task));
+      };
+
       return {
-        tldr: parsed.tldr || '',
-        keyTopics: Array.isArray(parsed.keyTopics) ? parsed.keyTopics : [],
-        actionItems: Array.isArray(parsed.actionItems) ? parsed.actionItems : [],
-        decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
+        tldr: typeof parsed.tldr === 'string' ? parsed.tldr : normalizeString(parsed.tldr),
+        keyTopics: Array.isArray(parsed.keyTopics)
+          ? parsed.keyTopics.map(normalizeString).filter(Boolean)
+          : [],
+        actionItems: Array.isArray(parsed.actionItems)
+          ? normalizeActionItems(parsed.actionItems)
+          : [],
+        decisions: Array.isArray(parsed.decisions)
+          ? parsed.decisions.map(normalizeString).filter(Boolean)
+          : [],
         importantLinksAndDates: Array.isArray(parsed.importantLinksAndDates)
-          ? parsed.importantLinksAndDates
+          ? parsed.importantLinksAndDates.map(normalizeString).filter(Boolean)
           : [],
         urgencyLevel: urgency,
       };

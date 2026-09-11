@@ -4,7 +4,10 @@ export interface ActionItem {
   task: string;
   assignee?: string;
   dueDate?: string;
+  [key: string]: unknown;
 }
+
+export type SummaryItem = string | Record<string, unknown>;
 
 export interface ChatSummary {
   chatId: string;
@@ -16,10 +19,10 @@ export interface ChatSummary {
   unreadTimeRange?: { start?: string; end?: string };
   previousContextCount?: number;
   tldr: string;
-  keyTopics: string[];
-  actionItems: ActionItem[];
-  decisions: string[];
-  importantLinksAndDates: string[];
+  keyTopics: SummaryItem[];
+  actionItems: (ActionItem | string)[];
+  decisions: SummaryItem[];
+  importantLinksAndDates: SummaryItem[];
   urgencyLevel: UrgencyLevel;
   rawSummaryMarkdown: string;
   generatedAt: string;

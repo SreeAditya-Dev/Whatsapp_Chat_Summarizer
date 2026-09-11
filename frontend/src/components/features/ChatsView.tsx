@@ -141,7 +141,7 @@ export function ChatsView({
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
       {/* Chat list column */}
       <Card className={cn(selected && 'hidden lg:block')}>
         <CardHeader className="pb-3">
@@ -237,7 +237,7 @@ export function ChatsView({
       </Card>
 
       {/* Detail column */}
-      <div className={cn(!selected && 'hidden lg:block')}>
+      <div className={cn('min-w-0', !selected && 'hidden lg:block')}>
         {!selected ? (
           isWaNotReady ? (
             <Empty
@@ -261,9 +261,9 @@ export function ChatsView({
             />
           )
         ) : (
-          <div className="flex animate-fade-up flex-col gap-4">
-            <Card>
-              <CardContent className="flex flex-col gap-4 p-5">
+          <div className="flex min-w-0 animate-fade-up flex-col gap-4">
+            <Card className="min-w-0 overflow-hidden">
+              <CardContent className="flex flex-col gap-4 p-5 min-w-0">
                 <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
@@ -338,12 +338,12 @@ export function ChatsView({
               </CardContent>
             </Card>
 
-            <Tabs value={detailTab} onValueChange={setDetailTab}>
+            <Tabs value={detailTab} onValueChange={setDetailTab} className="min-w-0">
               <TabsList>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
                 <TabsTrigger value="messages">Messages</TabsTrigger>
               </TabsList>
-              <TabsContent value="summary">
+              <TabsContent value="summary" className="min-w-0 mt-0">
                 {summaryLoading ? (
                   <Card>
                     <CardContent className="flex flex-col gap-3 p-5">
