@@ -138,7 +138,15 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
     this.client.on('message', async (msg: Message) => {
       try {
         if (msg.fromMe) return;
-        if (msg.isStatus || (msg as any).isBroadcast) return;
+        if (
+          msg.isStatus ||
+          (msg as any).isBroadcast ||
+          msg.from?.endsWith('@newsletter') ||
+          msg.from?.endsWith('@broadcast') ||
+          msg.from === 'status@broadcast'
+        ) {
+          return;
+        }
 
         const chatId = msg.from;
         let chatName: string | undefined;
@@ -591,34 +599,63 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
       throw HttpError.badRequest('Message content cannot be empty', 'INVALID_MESSAGE');
     }
 
-    let targetChat: Chat;
+    let targetChat: Chat | undefined;
+    let resolvedChatId = chatId;
+    let chatDisplayName = chatId;
+
     try {
       targetChat = await this.client!.getChatById(chatId);
-    } catch (err: any) {
-      const chats = await this.safeGetChats();
-      const lower = chatId.toLowerCase();
-      const found = chats.find(
-        (c) =>
-          c.name?.toLowerCase().includes(lower) ||
-          (c as any).formattedTitle?.toLowerCase().includes(lower)
-      );
-      if (!found) {
-        throw HttpError.notFound(`Chat not found for identifier: "${chatId}"`, 'CHAT_NOT_FOUND');
+      resolvedChatId = targetChat.id?._serialized || chatId;
+      chatDisplayName = targetChat.name || (targetChat as any).formattedTitle || resolvedChatId;
+    } catch {
+      try {
+        const chats = await this.safeGetChats();
+        const lower = chatId.toLowerCase();
+        targetChat = chats.find(
+          (c) =>
+            c.id?._serialized === chatId ||
+            c.id?.user === chatId ||
+            c.name?.toLowerCase().includes(lower) ||
+            (c as any).formattedTitle?.toLowerCase().includes(lower)
+        );
+        if (targetChat) {
+          resolvedChatId = targetChat.id?._serialized || chatId;
+          chatDisplayName = targetChat.name || (targetChat as any).formattedTitle || resolvedChatId;
+        }
+      } catch {
+        // Safe get chats search error ignored
       }
-      targetChat = found;
     }
 
-    const resolvedChatId = targetChat.id?._serialized || chatId;
-    logger.info({ chatId: resolvedChatId, chatName: targetChat.name }, 'Sending single WhatsApp message');
+    if (!targetChat && !chatId.includes('@')) {
+      throw HttpError.notFound(`Chat not found for identifier: "${chatId}"`, 'CHAT_NOT_FOUND');
+    }
+
+    logger.info({ chatId: resolvedChatId, chatName: chatDisplayName }, 'Sending single WhatsApp message');
 
     let sent: any;
-    try {
-      sent = await targetChat.sendMessage(message.trim());
-    } catch (sendErr: any) {
-      logger.warn(
-        { error: sendErr?.message, chatId: resolvedChatId },
-        'targetChat.sendMessage failed, trying direct client send fallback'
-      );
+    if (targetChat) {
+      try {
+        sent = await targetChat.sendMessage(message.trim());
+      } catch (sendErr: any) {
+        logger.warn(
+          { error: sendErr?.message, chatId: resolvedChatId },
+          'targetChat.sendMessage failed, trying direct client send fallback'
+        );
+        try {
+          sent = await this.client!.sendMessage(resolvedChatId, message.trim());
+        } catch (fallbackErr: any) {
+          logger.error(
+            { error: fallbackErr?.message, chatId: resolvedChatId },
+            'WhatsApp message delivery failed completely'
+          );
+          throw HttpError.internal(
+            `Failed to dispatch WhatsApp message: ${fallbackErr?.message || sendErr?.message}`,
+            'SEND_FAILED'
+          );
+        }
+      }
+    } else {
       try {
         sent = await this.client!.sendMessage(resolvedChatId, message.trim());
       } catch (fallbackErr: any) {
@@ -627,7 +664,7 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
           'WhatsApp message delivery failed completely'
         );
         throw HttpError.internal(
-          `Failed to dispatch WhatsApp message: ${fallbackErr?.message || sendErr?.message}`,
+          `Failed to dispatch WhatsApp message: ${fallbackErr?.message}`,
           'SEND_FAILED'
         );
       }

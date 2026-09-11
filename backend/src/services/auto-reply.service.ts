@@ -70,10 +70,36 @@ export class AutoReplyService {
       return;
     }
 
-    // 2. Ignore empty messages or system notifications
+    // 2. Ignore self messages, broadcasts, or newsletters
+    if (rawMessage?.fromMe || message.senderName === 'Me') {
+      return;
+    }
+    if (
+      chatId.endsWith('@newsletter') ||
+      chatId.endsWith('@broadcast') ||
+      chatId === 'status@broadcast' ||
+      (rawMessage as any)?.isNewsletter
+    ) {
+      return;
+    }
+
+    // 3. Ignore empty messages or system notifications
     const incomingText = message.body?.trim() || '';
     if (!incomingText && !message.hasMedia) {
       return;
+    }
+
+    // 4. Safety Guard: Never auto-reply to random groups unless the group is explicitly whitelisted
+    const isGroupChat = Boolean(isGroup || chatId.endsWith('@g.us'));
+    if (isGroupChat) {
+      const isGroupWhitelisted =
+        settings.aiReply.allowedChatIds.includes(chatId) ||
+        (chatName && settings.aiReply.allowedChatIds.includes(chatName));
+
+      if (!isGroupWhitelisted) {
+        logger.debug({ chatId, chatName }, 'Auto-reply skipped: group chat is not explicitly whitelisted');
+        return;
+      }
     }
 
     // 3. Verify Admin Chat Whitelist
