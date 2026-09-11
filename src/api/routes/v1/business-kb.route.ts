@@ -106,7 +106,7 @@ export function createBusinessKBRouter(summarizer?: ISummarizer): Router {
    */
   router.put('/faqs/:id', (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const parsed = updateFAQSchema.safeParse(req.body);
       if (!parsed.success) {
         throw HttpError.badRequest(
@@ -133,7 +133,7 @@ export function createBusinessKBRouter(summarizer?: ISummarizer): Router {
    */
   router.delete('/faqs/:id', (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const deleted = SettingsService.deleteFAQ(id);
       if (!deleted) {
         throw HttpError.notFound(`FAQ item with ID "${id}" was not found`);
