@@ -48,19 +48,29 @@ export function ConnectView({ wa, waLoading, waError, qrDataUrl, qrLoading, onRe
               <AlertDescription>{waError}. Is the backend running on :3000?</AlertDescription>
             </Alert>
           ) : connected ? (
-            <div className="flex w-full animate-scale-in flex-col items-center gap-3 rounded-2xl border border-emerald-800/20 bg-emerald-50 px-6 py-10 text-center">
-              <span className="flex size-14 items-center justify-center rounded-2xl bg-emerald-800 text-white">
+            <div className="flex w-full animate-scale-in flex-col items-center gap-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-50/90 px-6 py-10 text-center dark:border-emerald-500/20 dark:bg-emerald-950/20">
+              <span className="flex size-14 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-sm dark:bg-emerald-600">
                 <CheckCircle2Icon className="size-7" />
               </span>
-              <p className="font-display text-lg font-semibold text-emerald-950">WhatsApp is connected</p>
-              <p className="max-w-sm text-sm text-emerald-900/80">
-                {wa?.pushname || wa?.phoneNumber
-                  ? `Linked as ${wa?.pushname ?? ''}${wa?.phoneNumber ? ` (${wa.phoneNumber})` : ''}. Summaries are ready.`
-                  : 'Linked and ready. Summaries are ready.'}
-              </p>
-              <Badge variant="success">
-                <StatusPill state={wa?.state} className="border-0 bg-transparent p-0 text-white" />
-              </Badge>
+              <div className="space-y-1">
+                <p className="font-display text-lg font-bold text-emerald-950 dark:text-emerald-100">
+                  WhatsApp is connected
+                </p>
+                <p className="max-w-md text-sm font-medium text-emerald-900/90 dark:text-emerald-200/90">
+                  {wa?.pushname || wa?.phoneNumber ? (
+                    <>
+                      Linked as <strong className="font-semibold text-emerald-950 dark:text-emerald-50">{wa?.pushname ?? ''}</strong>
+                      {wa?.phoneNumber ? ` (${wa.phoneNumber})` : ''}. Summaries are ready.
+                    </>
+                  ) : (
+                    'Linked and ready. Summaries are ready.'
+                  )}
+                </p>
+              </div>
+              <StatusPill
+                state={wa?.state}
+                className="border-emerald-600/30 bg-white font-semibold text-emerald-800 shadow-xs dark:border-emerald-500/30 dark:bg-zinc-900 dark:text-emerald-300"
+              />
             </div>
           ) : qrDataUrl ? (
             <div className="flex animate-scale-in flex-col items-center gap-3">
