@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import { Express } from 'express';
 import { createExpressApp } from '../src/api/server';
+import { WhatsAppService } from '../src/services/whatsapp.service';
 import { IChatProvider, ChatProviderStatus, ChatFilterType } from '../src/core/interfaces/chat.interface';
 import { ISummarizer, SummarizeOptions } from '../src/core/interfaces/summarizer.interface';
 import { PaginationParams, PaginatedResult } from '../src/core/types/api.types';
@@ -382,4 +383,96 @@ describe('Express REST API (v1)', () => {
     expect(byIdRes.body.data.name).toBe('Praveen Kumar');
   });
 });
+
+describe('WhatsAppService.sendMessage (@lid and undefined ACK handling)', () => {
+  let service: WhatsAppService;
+  let mockClient: any;
+
+  beforeEach(() => {
+    service = new WhatsAppService();
+    (service as any).status = { state: 'READY', pushname: 'TestBot' };
+
+    mockClient = {
+      info: { pushname: 'TestBot', wid: { user: '123456789' } },
+      getChatById: vi.fn(),
+      getChats: vi.fn(),
+      sendMessage: vi.fn(),
+    };
+    (service as any).client = mockClient;
+  });
+
+  it('safely handles @lid chats when targetChat.sendMessage returns undefined without throwing 500', async () => {
+    const mockChat = {
+      id: { _serialized: '280251028521174@lid' },
+      name: '@sreeaditya',
+      sendMessage: vi.fn().mockResolvedValue(undefined), // WhatsApp Web @lid delay
+      lastMessage: {
+        id: { _serialized: 'true_280251028521174@lid_ack_msg_id' },
+      },
+    };
+    mockClient.getChatById.mockResolvedValue(mockChat);
+
+    const result = await service.sendMessage('280251028521174@lid', 'Hey Aditya, here is your summary');
+
+    expect(mockChat.sendMessage).toHaveBeenCalledWith('Hey Aditya, here is your summary');
+    expect(result).toBeDefined();
+    expect(result.messageId).toBe('true_280251028521174@lid_ack_msg_id');
+    expect(result.timestamp).toBeInstanceOf(Date);
+  });
+
+  it('generates a valid fallback messageId when both sent and lastMessage are undefined', async () => {
+    const mockChat = {
+      id: { _serialized: '280251028521174@lid' },
+      name: '@sreeaditya',
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+    };
+    mockClient.getChatById.mockResolvedValue(mockChat);
+
+    const result = await service.sendMessage('280251028521174@lid', 'Hello again');
+
+    expect(result).toBeDefined();
+    expect(result.messageId.startsWith('msg-')).toBe(true);
+    expect(result.timestamp).toBeInstanceOf(Date);
+  });
+
+  it('returns sent.id._serialized when whatsapp-web.js returns standard Message object', async () => {
+    const mockChat = {
+      id: { _serialized: '919092345559@c.us' },
+      name: 'Praveen',
+      sendMessage: vi.fn().mockResolvedValue({
+        id: { _serialized: 'true_919092345559@c.us_3EB0123' },
+        timestamp: 1726056000,
+      }),
+    };
+    mockClient.getChatById.mockResolvedValue(mockChat);
+
+    const result = await service.sendMessage('919092345559@c.us', 'Hello Praveen');
+
+    expect(result.messageId).toBe('true_919092345559@c.us_3EB0123');
+    expect(result.timestamp).toEqual(new Date(1726056000 * 1000));
+  });
+
+  it('falls back to client.sendMessage if targetChat.sendMessage throws', async () => {
+    const mockChat = {
+      id: { _serialized: '280251028521174@lid' },
+      name: '@sreeaditya',
+      sendMessage: vi.fn().mockRejectedValue(new Error('Browser target error')),
+    };
+    mockClient.getChatById.mockResolvedValue(mockChat);
+    mockClient.sendMessage.mockResolvedValue({
+      id: { _serialized: 'fallback_client_msg_id' },
+      timestamp: 1726056100,
+    });
+
+    const result = await service.sendMessage('280251028521174@lid', 'Testing fallback');
+
+    expect(mockClient.sendMessage).toHaveBeenCalledWith('280251028521174@lid', 'Testing fallback');
+    expect(result.messageId).toBe('fallback_client_msg_id');
+  });
+
+  it('rejects empty or whitespace-only messages', async () => {
+    await expect(service.sendMessage('123@c.us', '   ')).rejects.toThrow('Message content cannot be empty');
+  });
+});
+
 

@@ -513,7 +513,10 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
           const quoted = await resolveQuoted(msg);
 
           return {
-            id: msg.id._serialized,
+            id:
+              msg.id?._serialized ||
+              (typeof msg.id === 'string' ? msg.id : (msg.id as any)?.id) ||
+              `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             senderName: sender.name,
             senderNumber: sender.number,
             timestamp: new Date(msg.timestamp * 1000),
@@ -559,12 +562,50 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
       targetChat = found;
     }
 
-    logger.info({ chatId: targetChat.id._serialized, chatName: targetChat.name }, 'Sending single WhatsApp message');
-    const sent = await targetChat.sendMessage(message.trim());
+    const resolvedChatId = targetChat.id?._serialized || chatId;
+    logger.info({ chatId: resolvedChatId, chatName: targetChat.name }, 'Sending single WhatsApp message');
+
+    let sent: any;
+    try {
+      sent = await targetChat.sendMessage(message.trim());
+    } catch (sendErr: any) {
+      logger.warn(
+        { error: sendErr?.message, chatId: resolvedChatId },
+        'targetChat.sendMessage failed, trying direct client send fallback'
+      );
+      try {
+        sent = await this.client!.sendMessage(resolvedChatId, message.trim());
+      } catch (fallbackErr: any) {
+        logger.error(
+          { error: fallbackErr?.message, chatId: resolvedChatId },
+          'WhatsApp message delivery failed completely'
+        );
+        throw HttpError.internal(
+          `Failed to dispatch WhatsApp message: ${fallbackErr?.message || sendErr?.message}`,
+          'SEND_FAILED'
+        );
+      }
+    }
+
+    // WhatsApp Web multi-device / @lid accounts can return undefined from sendMessage
+    // when Msg.get(newMsgKey._serialized) is delayed or indexed differently in browser store.
+    // Guard against undefined or differently structured `sent` response.
+    const messageId =
+      sent?.id?._serialized ||
+      (typeof sent?.id === 'string' ? sent.id : sent?.id?.id) ||
+      (targetChat as any)?.lastMessage?.id?._serialized ||
+      `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    const timestamp =
+      sent?.timestamp && typeof sent.timestamp === 'number'
+        ? new Date(sent.timestamp * 1000)
+        : new Date();
+
+    logger.info({ chatId: resolvedChatId, messageId }, 'WhatsApp message sent successfully');
 
     return {
-      messageId: sent.id._serialized,
-      timestamp: new Date(sent.timestamp * 1000),
+      messageId,
+      timestamp,
     };
   }
 
@@ -682,10 +723,19 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
 
   private mapChatToInfo(chat: Chat): IChatInfo {
     const rawChat = chat as any;
-    const phoneNumber = !chat.isGroup && chat.id?.user ? chat.id.user : undefined;
+    let phoneNumber: string | undefined;
+    if (!chat.isGroup) {
+      if (rawChat.contact?.number && !rawChat.contact.number.includes('@')) {
+        phoneNumber = rawChat.contact.number;
+      } else if (rawChat.contact?.phoneNumber?._serialized) {
+        phoneNumber = rawChat.contact.phoneNumber.user;
+      } else if (chat.id?.user && !chat.id._serialized?.endsWith('@lid')) {
+        phoneNumber = chat.id.user;
+      }
+    }
     const name = this.resolveChatDisplayName(chat);
     return {
-      id: chat.id._serialized,
+      id: chat.id?._serialized || (chat as any).id,
       name,
       isGroup: chat.isGroup,
       unreadCount: chat.unreadCount || 0,
