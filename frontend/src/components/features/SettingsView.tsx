@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangleIcon,
+  BriefcaseIcon,
   CheckCircle2Icon,
   CheckIcon,
   FileTextIcon,
@@ -22,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BusinessKBView } from '@/components/features/BusinessKBView';
 import { api } from '@/lib/api';
 import { getChatDisplayNumber, matchesChatQuery } from '@/lib/format';
 import type { AppSettings, ChatInfo, ReplyTone, SummaryMode } from '@/lib/types';
@@ -42,6 +44,7 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
   const [chatSearch, setChatSearch] = useState('');
   const [whitelistFilter, setWhitelistFilter] = useState<'all' | 'whitelisted' | 'unwhitelisted'>('all');
   const [manualIdInput, setManualIdInput] = useState('');
+  const [activeTab, setActiveTab] = useState<'general' | 'business'>('general');
 
   useEffect(() => {
     let mounted = true;
@@ -291,8 +294,43 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
         </Alert>
       )}
 
-      {/* Section 1: Summary Depth & Context */}
-      <Card>
+      {/* Settings Navigation Tabs */}
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-1 shadow-xs max-w-md">
+        <button
+          type="button"
+          onClick={() => setActiveTab('general')}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition-all',
+            activeTab === 'general'
+              ? 'bg-zinc-900 text-white shadow-xs dark:bg-white dark:text-zinc-900'
+              : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground'
+          )}
+        >
+          <SparklesIcon className="size-3.5" />
+          General & AI Reply
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('business')}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition-all',
+            activeTab === 'business'
+              ? 'bg-blue-600 text-white shadow-xs dark:bg-blue-600'
+              : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground'
+          )}
+        >
+          <BriefcaseIcon className="size-3.5" />
+          Business Assistant (KB)
+        </button>
+      </div>
+
+      {activeTab === 'business' ? (
+        <BusinessKBView />
+      ) : (
+        <>
+          {/* Section 1: Summary Depth & Context */}
+          <Card>
         <CardHeader>
           <div className="flex items-center gap-2.5">
             <span className="flex size-9 items-center justify-center rounded-xl bg-zinc-900 text-white">
@@ -889,13 +927,15 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
         </CardContent>
       </Card>
 
-      {/* Bottom Save bar */}
-      <div className="flex items-center justify-end gap-3 pb-8">
-        <Button onClick={handleSave} disabled={saving} size="lg" className="gap-2 shadow-soft">
-          {saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}
-          {saving ? 'Saving changes…' : 'Save Preferences'}
-        </Button>
-      </div>
+          {/* Bottom Save bar */}
+          <div className="flex items-center justify-end gap-3 pb-8">
+            <Button onClick={handleSave} disabled={saving} size="lg" className="gap-2 shadow-soft">
+              {saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}
+              {saving ? 'Saving changes…' : 'Save Preferences'}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

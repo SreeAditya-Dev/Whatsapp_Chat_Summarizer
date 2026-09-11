@@ -97,4 +97,33 @@ export const api = {
     autoHistory: () =>
       request<import('./types').ApiEnvelope<import('./types').AutoReplyLog[]>>('/api/v1/reply/auto-history'),
   },
+
+  businessKB: {
+    get: () =>
+      request<import('./types').ApiEnvelope<import('./types').BusinessKnowledgeBase>>('/api/v1/business-kb'),
+    update: (body: Partial<import('./types').BusinessKnowledgeBase>) =>
+      request<import('./types').ApiEnvelope<import('./types').BusinessKnowledgeBase>>('/api/v1/business-kb', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    addFaq: (body: { question: string; answer: string; category?: import('./types').FAQCategory; enabled?: boolean }) =>
+      request<import('./types').ApiEnvelope<import('./types').FAQItem>>('/api/v1/business-kb/faqs', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    updateFaq: (id: string, body: Partial<import('./types').FAQItem>) =>
+      request<import('./types').ApiEnvelope<import('./types').FAQItem>>(`/api/v1/business-kb/faqs/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    deleteFaq: (id: string) =>
+      request<import('./types').ApiEnvelope<{ id: string; deleted: boolean }>>(`/api/v1/business-kb/faqs/${id}`, {
+        method: 'DELETE',
+      }),
+    testAnswer: (body: { question: string; tone?: string }) =>
+      request<import('./types').ApiEnvelope<import('./types').TestAnswerResponse>>('/api/v1/business-kb/test-answer', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  },
 };

@@ -140,4 +140,44 @@ export interface AppSettings {
     whitelistMode: 'all' | 'selected';
     allowedChatIds: string[];
   };
+  businessKB?: BusinessKnowledgeBase;
 }
+
+export type FAQCategory = 'General' | 'Pricing' | 'Services' | 'Timelines' | 'Policy';
+
+export interface BusinessProfile {
+  businessName: string;
+  industry: string;
+  tagline: string;
+  operatingHours: string;
+  locationOrAddress: string;
+  contactEmail: string;
+  paymentOrBookingLink?: string;
+}
+
+export interface FAQItem {
+  id: string;
+  question: string;
+  answer: string;
+  category: FAQCategory;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface BusinessKnowledgeBase {
+  enabled: boolean;
+  profile: BusinessProfile;
+  faqs: FAQItem[];
+  customGuidelines: string;
+  fallbackMessage: string;
+  additionalNotes: string;
+  updatedAt?: string;
+}
+
+export interface TestAnswerResponse {
+  question: string;
+  answer: string;
+  tone: string;
+  businessName: string;
+}
+
