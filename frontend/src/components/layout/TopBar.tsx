@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { MenuIcon, RefreshCwIcon, SparklesIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusPill } from '@/components/features/StatusPill';
@@ -24,6 +24,7 @@ export function TopBar({
   onOpenChats: () => void;
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const meta = TITLES[location.pathname] ?? TITLES['/'];
   return (
     <header className="sticky top-4 z-30">
@@ -41,7 +42,14 @@ export function TopBar({
         </div>
 
         <div className="flex items-center gap-2.5">
-          <StatusPill state={wa?.state} className="hidden sm:inline-flex" />
+          <button
+            type="button"
+            onClick={() => navigate('/connect')}
+            title="Go to Connect"
+            className="hidden cursor-pointer rounded-full transition-transform duration-200 hover:scale-[1.03] sm:inline-flex"
+          >
+            <StatusPill state={wa?.state} />
+          </button>
           <Button variant="outline" size="sm" onClick={onReload} disabled={refreshing}>
             <RefreshCwIcon data-icon="inline-start" className={refreshing ? 'animate-spin' : ''} />
             <span className="hidden sm:inline">Refresh</span>

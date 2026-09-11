@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ActivityIcon,
+  ArrowUpRightIcon,
   InboxIcon,
   LayoutDashboardIcon,
   MessagesSquareIcon,
@@ -30,6 +31,7 @@ export function Sidebar({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const connected = wa?.state === 'READY' || wa?.state === 'AUTHENTICATED';
 
   return (
     <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-60 shrink-0 flex-col justify-between rounded-2xl border border-border bg-card p-3 shadow-card lg:flex">
@@ -119,18 +121,28 @@ export function Sidebar({
       </div>
 
       <div className="flex flex-col gap-2.5 pt-2">
-        <div className="flex flex-col items-stretch gap-2 rounded-xl border border-border bg-secondary/50 p-3">
-          <p className="text-[13px] font-semibold">WhatsApp</p>
+        <button
+          type="button"
+          onClick={() => navigate('/connect')}
+          title={connected ? 'View connection' : 'Scan QR to connect'}
+          className="group flex cursor-pointer flex-col items-stretch gap-2 rounded-xl border border-border bg-secondary/50 p-3 text-left transition-colors hover:border-zinc-300 hover:bg-secondary"
+        >
+          <span className="flex items-center justify-between gap-2">
+            <span className="text-[13px] font-semibold">WhatsApp</span>
+            <ArrowUpRightIcon className="size-3.5 text-muted-foreground transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
+          </span>
           <StatusPill state={wa?.state} className="justify-center" />
-          <p className="truncate text-center text-xs text-muted-foreground">
-            {wa?.pushname ?? wa?.phoneNumber ?? 'Not linked yet'}
-          </p>
+          <span className="truncate text-center text-xs text-muted-foreground">
+            {connected
+              ? (wa?.pushname ?? wa?.phoneNumber ?? 'Connected')
+              : 'Not linked yet — tap to scan QR'}
+          </span>
           {model ? (
-            <p className="truncate rounded-md bg-card px-2 py-1 text-center text-[11px] text-muted-foreground">
-              {model}
-            </p>
+            <span className="truncate rounded-md bg-card px-2 py-1 text-center text-[11px] text-muted-foreground">
+              AI · {model}
+            </span>
           ) : null}
-        </div>
+        </button>
         <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
           Private by design — summaries run on your own server.
         </p>
