@@ -50,6 +50,7 @@ const envSchema = z.object({
     .transform((val) => val.toLowerCase() === 'true'),
   DEFAULT_SUMMARY_MESSAGE_LIMIT: z.coerce.number().int().min(5).max(500).default(100),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  DATABASE_PATH: z.string().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

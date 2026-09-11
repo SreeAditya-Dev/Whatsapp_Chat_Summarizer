@@ -1,7 +1,6 @@
-import fs from 'fs';
-import path from 'path';
 import { logger } from '../utils/logger';
-import { BusinessKnowledgeBase, DEFAULT_BUSINESS_KB, FAQItem } from '../core/types/business-kb.types';
+import { BusinessKnowledgeBase, BusinessProfile, DEFAULT_BUSINESS_KB, FAQItem } from '../core/types/business-kb.types';
+import { DatabaseManager } from '../db/database';
 
 export interface AppSettings {
   summary: {
@@ -20,7 +19,7 @@ export interface AppSettings {
   businessKB: BusinessKnowledgeBase;
 }
 
-const DEFAULT_SETTINGS: AppSettings = {
+export const DEFAULT_SETTINGS: AppSettings = {
   summary: {
     defaultDepth: 'brief',
     defaultMessageLimit: 100,
@@ -55,68 +54,84 @@ export interface UpdateAppSettingsDto {
 }
 
 export class SettingsService {
-  private static filePath = (() => {
-    const cwdFile = path.resolve(process.cwd(), '.settings.json');
-    if (fs.existsSync(cwdFile)) return cwdFile;
-    const parentFile = path.resolve(process.cwd(), '..', '.settings.json');
-    if (fs.existsSync(parentFile)) return parentFile;
-    return cwdFile;
-  })();
-  private static cachedSettings: AppSettings | null = null;
-
   static getSettings(): AppSettings {
-    if (this.cachedSettings) {
-      return this.cachedSettings;
-    }
+    const db = DatabaseManager.getInstance();
 
-    try {
-      if (fs.existsSync(this.filePath)) {
-        const raw = fs.readFileSync(this.filePath, 'utf-8');
-        const parsed = JSON.parse(raw);
-        const aiReplyParsed = parsed.aiReply || {};
-        const autoReply =
-          typeof aiReplyParsed.autoReply === 'boolean'
-            ? aiReplyParsed.autoReply
-            : typeof aiReplyParsed.requireReview === 'boolean'
-              ? !aiReplyParsed.requireReview
-              : DEFAULT_SETTINGS.aiReply.autoReply;
+    const appRow = db.prepare('SELECT * FROM app_settings WHERE id = 1').get() as any;
+    const profileRow = db.prepare('SELECT * FROM business_profile WHERE id = 1').get() as any;
+    const faqRows = (db.prepare('SELECT * FROM business_faqs ORDER BY created_at ASC').all() || []) as any[];
 
-        const parsedKB = parsed.businessKB || {};
-
-        this.cachedSettings = {
-          summary: {
-            ...DEFAULT_SETTINGS.summary,
-            ...(parsed.summary || {}),
-          },
-          aiReply: {
-            ...DEFAULT_SETTINGS.aiReply,
-            ...aiReplyParsed,
-            autoReply,
-            requireReview: !autoReply,
-          },
-          businessKB: {
-            ...DEFAULT_BUSINESS_KB,
-            ...parsedKB,
-            profile: {
-              ...DEFAULT_BUSINESS_KB.profile,
-              ...(parsedKB.profile || {}),
-            },
-            faqs: Array.isArray(parsedKB.faqs) ? parsedKB.faqs : DEFAULT_BUSINESS_KB.faqs,
-          },
-        };
-        return this.cachedSettings!;
+    let allowedChatIds: string[] = [];
+    if (appRow?.ai_allowed_chat_ids) {
+      try {
+        allowedChatIds = JSON.parse(appRow.ai_allowed_chat_ids);
+      } catch {
+        allowedChatIds = [];
       }
-    } catch (err: any) {
-      logger.warn({ error: err.message }, 'Failed to read .settings.json, falling back to defaults');
     }
 
-    this.cachedSettings = { ...DEFAULT_SETTINGS };
-    return this.cachedSettings;
+    const summary = {
+      defaultDepth: (appRow?.summary_depth || DEFAULT_SETTINGS.summary.defaultDepth) as 'compact' | 'brief' | 'detailed',
+      defaultMessageLimit: appRow?.summary_message_limit ?? DEFAULT_SETTINGS.summary.defaultMessageLimit,
+    };
+
+    const autoReply = Boolean(appRow?.ai_auto_reply ?? 1);
+    const requireReview = Boolean(appRow?.ai_require_review ?? 0);
+
+    const aiReply = {
+      enabled: Boolean(appRow?.ai_reply_enabled ?? 1),
+      autoReply,
+      requireReview,
+      defaultTone: (appRow?.ai_default_tone || DEFAULT_SETTINGS.aiReply.defaultTone) as 'casual' | 'friendly' | 'professional' | 'concise',
+      customPersona: appRow?.ai_custom_persona || '',
+      whitelistMode: (appRow?.ai_whitelist_mode || 'all') as 'all' | 'selected',
+      allowedChatIds,
+    };
+
+    const profile: BusinessProfile = {
+      businessName: profileRow?.business_name || '',
+      industry: profileRow?.industry || '',
+      tagline: profileRow?.tagline || '',
+      operatingHours: profileRow?.operating_hours || '',
+      locationOrAddress: profileRow?.location_or_address || '',
+      contactEmail: profileRow?.contact_email || '',
+      paymentOrBookingLink: profileRow?.payment_or_booking_link || '',
+    };
+
+    const faqs: FAQItem[] = faqRows.map((f) => ({
+      id: f.id,
+      question: f.question,
+      answer: f.answer,
+      category: f.category || 'General',
+      enabled: Boolean(f.enabled),
+      createdAt: f.created_at,
+    }));
+
+    const businessKB: BusinessKnowledgeBase = {
+      enabled: Boolean(profileRow?.enabled ?? 0),
+      profile,
+      faqs,
+      customGuidelines: profileRow?.custom_guidelines || '',
+      fallbackMessage: profileRow?.fallback_message || '',
+      additionalNotes: profileRow?.additional_notes || '',
+      updatedAt: profileRow?.updated_at || new Date().toISOString(),
+    };
+
+    return {
+      summary,
+      aiReply,
+      businessKB,
+    };
   }
 
   static updateSettings(partial: UpdateAppSettingsDto): AppSettings {
+    const db = DatabaseManager.getInstance();
     const current = this.getSettings();
+
+    // 1. Update summary & aiReply in app_settings
+    const partialSummary = partial.summary || {};
     const partialAi = partial.aiReply || {};
+
     let autoReply = partialAi.autoReply;
     let requireReview = partialAi.requireReview;
 
@@ -129,42 +144,101 @@ export class SettingsService {
       requireReview = current.aiReply.requireReview;
     }
 
-    const partialKB = partial.businessKB || {};
-    const updatedKB: BusinessKnowledgeBase = {
-      ...current.businessKB,
-      ...partialKB,
-      profile: {
+    const newSummary = {
+      defaultDepth: partialSummary.defaultDepth || current.summary.defaultDepth,
+      defaultMessageLimit: partialSummary.defaultMessageLimit ?? current.summary.defaultMessageLimit,
+    };
+
+    const newAi = {
+      enabled: partialAi.enabled !== undefined ? partialAi.enabled : current.aiReply.enabled,
+      autoReply: autoReply ?? true,
+      requireReview: requireReview ?? false,
+      defaultTone: partialAi.defaultTone || current.aiReply.defaultTone,
+      customPersona: partialAi.customPersona !== undefined ? partialAi.customPersona : current.aiReply.customPersona,
+      whitelistMode: partialAi.whitelistMode || current.aiReply.whitelistMode,
+      allowedChatIds: partialAi.allowedChatIds || current.aiReply.allowedChatIds,
+    };
+
+    db.prepare(`
+      INSERT OR REPLACE INTO app_settings (
+        id, summary_depth, summary_message_limit,
+        ai_reply_enabled, ai_auto_reply, ai_require_review,
+        ai_default_tone, ai_custom_persona, ai_whitelist_mode,
+        ai_allowed_chat_ids
+      ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      newSummary.defaultDepth,
+      newSummary.defaultMessageLimit,
+      newAi.enabled ? 1 : 0,
+      newAi.autoReply ? 1 : 0,
+      newAi.requireReview ? 1 : 0,
+      newAi.defaultTone,
+      newAi.customPersona,
+      newAi.whitelistMode,
+      JSON.stringify(newAi.allowedChatIds)
+    );
+
+    // 2. Update business KB if provided
+    if (partial.businessKB) {
+      const partialKB = partial.businessKB;
+      const partialProfile = partialKB.profile || {};
+      const newProfile: BusinessProfile = {
         ...current.businessKB.profile,
-        ...(partialKB.profile || {}),
-      },
-      faqs: partialKB.faqs !== undefined ? partialKB.faqs : current.businessKB.faqs,
-      updatedAt: new Date().toISOString(),
-    };
+        ...partialProfile,
+      };
 
-    const updated: AppSettings = {
-      summary: {
-        ...current.summary,
-        ...(partial.summary || {}),
-      },
-      aiReply: {
-        ...current.aiReply,
-        ...partialAi,
-        autoReply: autoReply ?? true,
-        requireReview: requireReview ?? false,
-      },
-      businessKB: updatedKB,
-    };
+      const newKbEnabled = partialKB.enabled !== undefined ? partialKB.enabled : current.businessKB.enabled;
+      const newGuidelines = partialKB.customGuidelines !== undefined ? partialKB.customGuidelines : current.businessKB.customGuidelines;
+      const newFallback = partialKB.fallbackMessage !== undefined ? partialKB.fallbackMessage : current.businessKB.fallbackMessage;
+      const newNotes = partialKB.additionalNotes !== undefined ? partialKB.additionalNotes : current.businessKB.additionalNotes;
+      const updatedAt = new Date().toISOString();
 
-    try {
-      fs.writeFileSync(this.filePath, JSON.stringify(updated, null, 2), 'utf-8');
-      this.cachedSettings = updated;
-      logger.info('App settings successfully updated and saved to .settings.json');
-    } catch (err: any) {
-      logger.error({ error: err.message }, 'Failed to save .settings.json');
-      throw new Error(`Failed to save settings: ${err.message}`);
+      db.prepare(`
+        INSERT OR REPLACE INTO business_profile (
+          id, enabled, business_name, industry, tagline,
+          operating_hours, location_or_address, contact_email,
+          payment_or_booking_link, custom_guidelines,
+          fallback_message, additional_notes, updated_at
+        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        newKbEnabled ? 1 : 0,
+        newProfile.businessName,
+        newProfile.industry,
+        newProfile.tagline,
+        newProfile.operatingHours,
+        newProfile.locationOrAddress,
+        newProfile.contactEmail,
+        newProfile.paymentOrBookingLink || '',
+        newGuidelines,
+        newFallback,
+        newNotes,
+        updatedAt
+      );
+
+      // If faqs array was explicitly passed, replace the faqs table
+      if (Array.isArray(partialKB.faqs)) {
+        db.exec('DELETE FROM business_faqs');
+        const insertFaq = db.prepare(`
+          INSERT INTO business_faqs (
+            id, question, answer, category, enabled, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        for (const faq of partialKB.faqs) {
+          insertFaq.run(
+            faq.id,
+            faq.question,
+            faq.answer,
+            faq.category || 'General',
+            faq.enabled !== false ? 1 : 0,
+            faq.createdAt || new Date().toISOString(),
+            null
+          );
+        }
+      }
     }
 
-    return updated;
+    logger.info('App settings successfully updated and saved to SQLite database');
+    return this.getSettings();
   }
 
   static getBusinessKB(): BusinessKnowledgeBase {
@@ -177,38 +251,63 @@ export class SettingsService {
   }
 
   static addFAQ(faq: Omit<FAQItem, 'id' | 'createdAt'>): FAQItem {
-    const current = this.getBusinessKB();
-    const newFaq: FAQItem = {
+    const db = DatabaseManager.getInstance();
+    const id = `faq-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const createdAt = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO business_faqs (id, question, answer, category, enabled, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, faq.question, faq.answer, faq.category || 'General', faq.enabled !== false ? 1 : 0, createdAt);
+
+    db.prepare(`UPDATE business_profile SET updated_at = ? WHERE id = 1`).run(createdAt);
+
+    return {
       ...faq,
-      id: `faq-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      createdAt: new Date().toISOString(),
+      id,
+      category: faq.category || 'General',
+      enabled: faq.enabled !== false,
+      createdAt,
     };
-    this.updateBusinessKB({
-      faqs: [...current.faqs, newFaq],
-    });
-    return newFaq;
   }
 
   static updateFAQ(id: string, partial: Partial<FAQItem>): FAQItem | null {
-    const current = this.getBusinessKB();
-    const index = current.faqs.findIndex((f) => f.id === id);
-    if (index === -1) return null;
+    const db = DatabaseManager.getInstance();
+    const existing = db.prepare('SELECT * FROM business_faqs WHERE id = ?').get(id) as any;
+    if (!existing) return null;
 
-    const updated = { ...current.faqs[index], ...partial, id };
-    const newFaqs = [...current.faqs];
-    newFaqs[index] = updated;
+    const updatedAt = new Date().toISOString();
+    const question = partial.question !== undefined ? partial.question : existing.question;
+    const answer = partial.answer !== undefined ? partial.answer : existing.answer;
+    const category = partial.category !== undefined ? partial.category : existing.category;
+    const enabled = partial.enabled !== undefined ? (partial.enabled ? 1 : 0) : existing.enabled;
 
-    this.updateBusinessKB({ faqs: newFaqs });
-    return updated;
+    db.prepare(`
+      UPDATE business_faqs
+      SET question = ?, answer = ?, category = ?, enabled = ?, updated_at = ?
+      WHERE id = ?
+    `).run(question, answer, category, enabled, updatedAt, id);
+
+    db.prepare(`UPDATE business_profile SET updated_at = ? WHERE id = 1`).run(updatedAt);
+
+    return {
+      id,
+      question,
+      answer,
+      category,
+      enabled: Boolean(enabled),
+      createdAt: existing.created_at,
+    };
   }
 
   static deleteFAQ(id: string): boolean {
-    const current = this.getBusinessKB();
-    const newFaqs = current.faqs.filter((f) => f.id !== id);
-    if (newFaqs.length === current.faqs.length) return false;
-
-    this.updateBusinessKB({ faqs: newFaqs });
-    return true;
+    const db = DatabaseManager.getInstance();
+    const result = db.prepare('DELETE FROM business_faqs WHERE id = ?').run(id);
+    if (Number(result.changes) > 0) {
+      db.prepare(`UPDATE business_profile SET updated_at = ? WHERE id = 1`).run(new Date().toISOString());
+      return true;
+    }
+    return false;
   }
 
   static isChatAllowedForReply(chatId: string, additionalIdentifiers: string[] = []): boolean {

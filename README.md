@@ -65,15 +65,22 @@ An intelligent, modular service that solves WhatsApp message overload (such as 2
 - **Telegram Bot Token**: Created via [@BotFather](https://t.me/BotFather) on Telegram
 
 ### 2. Installation
-Clone the repository and install dependencies:
+Clone the repository and install dependencies for backend and frontend:
 ```bash
 git clone https://github.com/SreeAditya-Dev/Whatsapp_Chat_Summarizer.git
 cd whatsapp_chat_summarizer
+
+# Install Backend dependencies
+cd backend
+npm install
+
+# Install Frontend dependencies
+cd ../frontend
 npm install
 ```
 
 ### 3. Configure Environment Variables
-Copy `.env.example` to `.env`:
+Copy `.env.example` to `.env` in the project root (or inside `backend/`):
 ```bash
 cp .env.example .env
 ```
@@ -83,6 +90,9 @@ Edit `.env` with your credentials:
 # Server Port
 PORT=3000
 NODE_ENV=development
+
+# Database (optional, defaults to data.db)
+# DATABASE_PATH=data.db
 
 # Mistral AI (Required for summarization)
 MISTRAL_API_KEY=your_mistral_api_key_here
@@ -98,18 +108,20 @@ HEADLESS=true
 DEFAULT_SUMMARY_MESSAGE_LIMIT=100
 ```
 
-### 4. Run the Service
+### 4. Run the Services
 
-#### Development Mode (Auto-reloading):
+#### Run Backend (API & WhatsApp Service):
 ```bash
+cd backend
 npm run dev
 ```
 
-#### Production Mode:
+#### Run Frontend (React Web Dashboard):
 ```bash
-npm run build
-npm start
+cd frontend
+npm run dev
 ```
+Open `http://localhost:5173` in your browser.
 
 ### 5. Pair WhatsApp
 On the first startup, you need to pair WhatsApp:

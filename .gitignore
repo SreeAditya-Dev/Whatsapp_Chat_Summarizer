@@ -13,6 +13,11 @@ backend/dist/
 .env.local
 .env.*.local
 .settings.json
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+data/
 
 # WhatsApp Web session and cache storage
 .wwebjs_auth/
