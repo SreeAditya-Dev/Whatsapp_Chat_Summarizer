@@ -317,21 +317,6 @@ export function ChatsView({
     }
   };
 
-  // Automatically generate AI draft when opening the reply tab for an allowed chat
-  useEffect(() => {
-    if (
-      detailTab === 'reply' &&
-      selected &&
-      isChatAllowedForReply &&
-      !replyDraft &&
-      !replyDrafting &&
-      !replySuccessMessage &&
-      !replyDraftError
-    ) {
-      void generateDraft();
-    }
-  }, [detailTab, selected?.id, isChatAllowedForReply]);
-
   const executeSendReply = async () => {
     if (!selected || !replyDraft.trim()) return;
     setShowConfirmDialog(false);
@@ -893,10 +878,7 @@ export function ChatsView({
                             <button
                               key={t}
                               type="button"
-                              onClick={() => {
-                                setReplyTone(t);
-                                void generateDraft(t);
-                              }}
+                              onClick={() => setReplyTone(t)}
                               className={cn(
                                 'flex-1 rounded-lg py-1.5 text-xs font-medium capitalize transition-all',
                                 replyTone === t

@@ -29,12 +29,50 @@ export function formatUptime(totalSeconds: number): string {
 }
 
 export function initials(name: string): string {
-  return name
+  if (!name || !name.trim()) return '?';
+
+  // 1. Extract words preserving letters/numbers across all Unicode scripts (e.g. Latin, Devanagari, Han, etc.)
+  const words = name
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? '')
-    .join('');
+    .filter(Boolean);
+
+  if (words.length >= 2) {
+    const significantWords = words.filter(
+      (w) => !['of', 'in', 'at', 'to', 'for', 'a', 'an', 'the', 'and', '&'].includes(w.toLowerCase())
+    );
+    const chosen = significantWords.length >= 2 ? significantWords : words;
+    const firstChar = Array.from(chosen[0])[0] || '';
+    const secondChar = Array.from(chosen[1])[0] || '';
+    return (firstChar + secondChar).toUpperCase();
+  }
+
+  if (words.length === 1) {
+    const chars = Array.from(words[0]);
+    return (chars[0] + (chars[1] || '')).toUpperCase();
+  }
+
+  // 2. Pure emoji or symbol fallback: safely extract grapheme clusters without splitting surrogates
+  const intlAny = Intl as unknown as {
+    Segmenter?: new (
+      locales?: string | string[],
+      options?: { granularity?: 'grapheme' | 'word' | 'sentence' }
+    ) => { segment: (input: string) => Iterable<{ segment: string }> };
+  };
+
+  if (typeof intlAny !== 'undefined' && typeof intlAny.Segmenter === 'function') {
+    const segmenter = new intlAny.Segmenter(undefined, { granularity: 'grapheme' });
+    const segments = Array.from(segmenter.segment(name.trim().replace(/\s+/g, ''))).map(
+      (s) => s.segment
+    );
+    return segments.slice(0, 2).join('');
+  }
+
+  const graphemes = Array.from(name.trim().replace(/\s+/g, ''));
+  if (graphemes.length >= 2) {
+    return graphemes.slice(0, 2).join('');
+  }
+  return graphemes[0] || '?';
 }
 
 // Deterministic muted avatar tone (solid, warm — no neon)
