@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangleIcon,
   ArrowLeftIcon,
-  ArrowRightIcon,
   CheckCircle2Icon,
   CheckIcon,
   Loader2Icon,
   MessageSquareIcon,
+  MessagesSquareIcon,
   QrCodeIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -19,12 +19,9 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Empty } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Dialog,
@@ -36,6 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { ChatListItem } from '@/components/features/ChatListItem';
 import { MessageList } from '@/components/features/MessageList';
+import { StatusPill } from '@/components/features/StatusPill';
 import { SummaryView } from '@/components/features/SummaryView';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { api } from '@/lib/api';
@@ -271,7 +269,6 @@ export function ChatsView({
         );
         setReplyDraft('');
         setReplySuggestions([]);
-        // Reload messages to display the new outgoing message
         void loadMessages(selected.id);
       } else {
         throw new Error('Message dispatch returned undelivered state');
@@ -284,406 +281,480 @@ export function ChatsView({
   };
 
   return (
-    <div className="grid min-w-0 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] lg:h-full lg:min-h-0 lg:overflow-hidden">
-      {/* Chat list column: stays pinned on desktop, never moves with the page */}
-      <Card
+    <div className="flex h-full min-h-0 w-full min-w-0 gap-4 overflow-hidden">
+      {/* Left Column: Chats List Panel */}
+      <div
         className={cn(
-          'flex flex-col min-w-0 overflow-hidden',
+          'flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card lg:w-[380px] lg:shrink-0',
           selected && 'hidden lg:flex',
-          'lg:h-full lg:min-h-0 lg:sticky lg:top-0',
         )}
       >
-        <CardHeader className="shrink-0 pb-3">
+        {/* Left Header */}
+        <div className="flex shrink-0 flex-col gap-3 border-b border-border/80 p-4">
           <div className="flex items-center justify-between gap-2">
-            <div>
-              <CardTitle>Chats</CardTitle>
-              <CardDescription>
-                {totalUnread > 0 ? `${totalUnread} unread to catch up on` : 'Everything is caught up'}
-              </CardDescription>
+            <div className="flex items-center gap-2">
+              <h2 className="font-display text-base font-bold tracking-tight">Chats</h2>
+              {totalUnread > 0 ? (
+                <Badge variant="unread" className="h-5 px-1.5 text-[11px] font-bold">
+                  {totalUnread} new
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[11px]">
+                  All clear
+                </Badge>
+              )}
             </div>
-            <Button variant="ghost" size="icon-sm" onClick={onReloadChats} aria-label="Refresh chats">
-              <RefreshCwIcon data-icon="inline-start" />
-            </Button>
+
+            <div className="flex items-center gap-2">
+              <StatusPill state={wa?.state} className="text-[11px] py-0.5" />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onReloadChats}
+                title="Refresh conversations"
+                className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+              >
+                <RefreshCwIcon className={cn('size-3.5', chatsLoading && 'animate-spin')} />
+              </Button>
+            </div>
           </div>
-          <div className="relative mt-1">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+
+          {/* Search bar */}
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search chats…"
-              className="pl-9"
+              placeholder="Search contacts & groups…"
+              className="h-9 rounded-xl pl-9 text-xs"
               aria-label="Search chats"
             />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                ×
+              </button>
+            )}
           </div>
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as ChatFilter)} className="mt-1">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="unread">Unread</TabsTrigger>
-              <TabsTrigger value="groups">Groups</TabsTrigger>
-              <TabsTrigger value="direct">Direct</TabsTrigger>
+
+          {/* Filter Segmented Pills */}
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as ChatFilter)} className="w-full">
+            <TabsList className="grid h-8 w-full grid-cols-4 rounded-xl bg-secondary/80 p-0.5 text-xs">
+              <TabsTrigger value="all" className="rounded-lg text-[11px]">
+                All
+              </TabsTrigger>
+              <TabsTrigger value="unread" className="rounded-lg text-[11px]">
+                Unread
+              </TabsTrigger>
+              <TabsTrigger value="groups" className="rounded-lg text-[11px]">
+                Groups
+              </TabsTrigger>
+              <TabsTrigger value="direct" className="rounded-lg text-[11px]">
+                Direct
+              </TabsTrigger>
             </TabsList>
           </Tabs>
-        </CardHeader>
-        <CardContent className="flex flex-1 min-h-0 flex-col overflow-hidden p-4 pt-0 sm:p-5 sm:pt-0">
+        </div>
+
+        {/* Left Chat List Body */}
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden p-2">
           {chatsLoading ? (
-            <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-2 p-1">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 rounded-2xl border border-border p-3">
-                  <Skeleton className="size-11 rounded-full" />
-                  <div className="flex flex-1 flex-col gap-2">
-                    <Skeleton className="h-3.5 w-2/3" />
-                    <Skeleton className="h-3 w-1/3" />
+                <div key={i} className="flex items-center gap-3 rounded-xl p-2.5">
+                  <Skeleton className="size-10 rounded-full shrink-0" />
+                  <div className="flex flex-1 flex-col gap-1.5">
+                    <Skeleton className="h-3.5 w-3/5" />
+                    <Skeleton className="h-3 w-2/5" />
                   </div>
                 </div>
               ))}
             </div>
           ) : isWaNotReady ? (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 text-center">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-amber-500/15 text-amber-800 dark:text-amber-200">
+            <div className="m-2 flex flex-col items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-5 text-center">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-800 dark:text-amber-200">
                 <QrCodeIcon className="size-5" />
               </div>
-              <div className="flex flex-col gap-1">
-                <h3 className="font-display text-sm font-semibold text-stone-900 dark:text-stone-100">
-                  WhatsApp Not Connected
-                </h3>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  Chats will appear here once you pair your phone. Scan the QR code in the Connect tab to link securely.
+              <div>
+                <h3 className="font-display text-sm font-semibold">WhatsApp Not Connected</h3>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  Pair your device to view chats and generate instant summaries.
                 </p>
               </div>
-              <div className="mt-1 flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
-                <Button size="sm" onClick={onConnect} className="gap-2">
-                  <QrCodeIcon className="size-3.5" />
-                  Pair with QR Code
-                </Button>
-                <Button size="sm" variant="outline" onClick={onReloadChats}>
-                  <RefreshCwIcon className="size-3.5" />
-                  Retry
-                </Button>
-              </div>
+              <Button size="sm" onClick={onConnect} className="gap-2 text-xs">
+                <QrCodeIcon className="size-3.5" /> Scan QR Code
+              </Button>
             </div>
           ) : chatsError ? (
-            <Alert variant="danger">
-              <AlertTitle>Couldn&apos;t load chats</AlertTitle>
-              <AlertDescription>{chatsError}</AlertDescription>
-            </Alert>
+            <div className="p-3">
+              <Alert variant="danger">
+                <AlertTitle>Couldn&apos;t load chats</AlertTitle>
+                <AlertDescription>{chatsError}</AlertDescription>
+              </Alert>
+            </div>
           ) : filtered.length === 0 ? (
-            <Empty
-              title={debouncedQuery ? 'No matches' : 'All clear'}
-              description={
-                debouncedQuery
-                  ? `Nothing matches “${debouncedQuery}”.`
-                  : 'No chats in this view yet.'
-              }
-            />
+            <div className="flex flex-1 flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">
+                {debouncedQuery ? 'No matching conversations' : 'No chats in this view'}
+              </p>
+              <p className="mt-1">
+                {debouncedQuery
+                  ? `No chats found matching "${debouncedQuery}"`
+                  : 'Check another filter or refresh your chats.'}
+              </p>
+            </div>
           ) : (
-            <div className="nice-scroll flex flex-1 min-h-0 flex-col gap-2 overflow-y-auto pr-0.5">
+            <div className="nice-scroll flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto pr-0.5">
               {filtered.map((c) => (
-                <ChatListItem key={c.id} chat={c} selected={selected?.id === c.id} onSelect={selectChat} />
+                <ChatListItem
+                  key={c.id}
+                  chat={c}
+                  selected={selected?.id === c.id}
+                  onSelect={selectChat}
+                />
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Detail column */}
+      {/* Right Column: Active Conversation / Empty State Panel */}
       <div
         className={cn(
-          'min-w-0',
-          !selected && 'hidden lg:block',
-          selected && 'lg:h-full lg:min-h-0 lg:flex lg:flex-col lg:overflow-hidden',
+          'flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card',
+          !selected && 'hidden lg:flex',
         )}
       >
         {!selected ? (
-          isWaNotReady ? (
-            <Empty
-              title="Pair WhatsApp to see conversations"
-              description="Relay keeps your messages private on your server. Scan the QR code once to link your phone and enable one-click AI summaries."
-              icon={<QrCodeIcon className="size-6 text-stone-700 dark:text-stone-300" />}
-              action={
-                <Button onClick={onConnect} size="lg" className="gap-2">
-                  <QrCodeIcon className="size-4" />
-                  Go to Connect
-                  <ArrowRightIcon className="size-4" />
+          /* Empty State: Calm, uncluttered welcome canvas */
+          <div className="flex h-full flex-1 flex-col items-center justify-center p-8 text-center">
+            <div className="flex size-16 items-center justify-center rounded-2xl bg-secondary/80 text-foreground shadow-soft mb-4">
+              <MessagesSquareIcon className="size-7" />
+            </div>
+            <h3 className="font-display text-lg font-bold tracking-tight">Select a conversation</h3>
+            <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-muted-foreground">
+              Choose any chat from the left panel to review recent messages, generate structured summaries, or draft contextual AI replies.
+            </p>
+
+            {totalUnread > 0 && (
+              <div className="mt-6 flex flex-col items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFilter('unread')}
+                  className="gap-2 rounded-xl border-dashed hover:border-solid text-xs"
+                >
+                  <SparklesIcon className="size-3.5 text-amber-500" />
+                  Filter to {totalUnread} unread conversations
                 </Button>
-              }
-              className="h-full min-h-[420px]"
-            />
-          ) : (
-            <Empty
-              title="Pick a chat to begin"
-              description="Choose any conversation on the left — then generate structured summaries or context-aware AI replies."
-              className="h-full min-h-[420px]"
-            />
-          )
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="flex flex-1 min-h-0 animate-fade-up flex-col gap-4 overflow-hidden">
-            {/* Selected Chat Header Card: stays pinned at top of right pane */}
-            <Card className="min-w-0 overflow-hidden shrink-0">
-              <CardContent className="flex flex-col gap-4 p-5 min-w-0">
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="lg:hidden"
-                    onClick={() => setSelected(null)}
-                    aria-label="Back to chats"
-                  >
-                    <ArrowLeftIcon data-icon="inline-start" />
-                  </Button>
-                  <Avatar className="size-11">
-                    <AvatarFallback className={avatarTone(selected.name)}>
-                      {initials(selected.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate font-display text-[15px] font-semibold">{selected.name}</p>
-                      {isChatAllowedForReply && (
-                        <Badge variant="outline" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-[10px] py-0 px-1.5 gap-1">
-                          <CheckIcon className="size-3" /> AI Whitelisted
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-[13px] text-muted-foreground">
-                      {selected.isGroup ? 'Group' : 'Direct'}
-                      {selected.unreadCount > 0 ? ` · ${selected.unreadCount} unread` : ' · caught up'}
-                    </p>
+          /* Active Conversation Panel */
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+            {/* Unified Conversation Header */}
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border/80 px-5 py-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="lg:hidden"
+                  onClick={() => setSelected(null)}
+                  aria-label="Back to chats"
+                >
+                  <ArrowLeftIcon className="size-4" />
+                </Button>
+
+                <Avatar className="size-10 shrink-0 ring-1 ring-border/50">
+                  <AvatarFallback className={avatarTone(selected.name)}>
+                    {initials(selected.name)}
+                  </AvatarFallback>
+                </Avatar>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-display truncate text-sm font-semibold tracking-tight">
+                      {selected.name}
+                    </h2>
+                    {isChatAllowedForReply && (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-emerald-500/40 px-1.5 py-0 text-[10px] text-emerald-700 dark:text-emerald-300"
+                      >
+                        <CheckIcon className="size-3" /> AI Whitelisted
+                      </Badge>
+                    )}
                   </div>
-                  {selected.unreadCount > 0 ? (
-                    <Badge variant="unread">{selected.unreadCount} new</Badge>
+                  <p className="text-xs text-muted-foreground">
+                    {selected.isGroup ? 'Group' : 'Direct'}
+                    {selected.unreadCount > 0
+                      ? ` · ${selected.unreadCount} unread messages`
+                      : ' · caught up'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Controls */}
+              <div className="flex items-center gap-2.5">
+                {/* Summary Depth Selector Pills */}
+                <div className="hidden sm:flex items-center rounded-xl border border-border bg-secondary/60 p-0.5">
+                  {(['compact', 'brief', 'detailed'] as SummaryMode[]).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setSummaryMode(mode)}
+                      className={cn(
+                        'rounded-lg px-2.5 py-1 text-[11px] font-semibold capitalize transition-all',
+                        summaryMode === mode
+                          ? 'bg-zinc-900 text-white shadow-xs dark:bg-white dark:text-zinc-900'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+
+                <Button
+                  size="sm"
+                  onClick={() => void runSummary()}
+                  disabled={summaryLoading}
+                  className="gap-1.5 shadow-soft rounded-xl text-xs font-semibold"
+                >
+                  {summaryLoading ? (
+                    <Loader2Icon className="size-3.5 animate-spin" />
                   ) : (
-                    <Badge variant="success">Clear</Badge>
+                    <SparklesIcon className="size-3.5" />
+                  )}
+                  {summaryLoading ? 'Summarizing…' : 'Summarize'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Sub-Header: Clean Underline Tab Navigation */}
+            <div className="flex shrink-0 items-center justify-between border-b border-border/70 bg-secondary/20 px-5">
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setDetailTab('summary')}
+                  className={cn(
+                    'flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-xs font-semibold transition-colors',
+                    detailTab === 'summary'
+                      ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <SparklesIcon className="size-3.5" />
+                  Summary
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDetailTab('reply')}
+                  className={cn(
+                    'flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-xs font-semibold transition-colors',
+                    detailTab === 'reply'
+                      ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <MessageSquareIcon className="size-3.5" />
+                  AI Reply
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDetailTab('messages')}
+                  className={cn(
+                    'flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-xs font-semibold transition-colors',
+                    detailTab === 'messages'
+                      ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Messages
+                  {messages.length > 0 && (
+                    <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+                      {messages.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Context Limit & Refresh */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="hidden sm:inline">Context:</span>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    min={10}
+                    max={300}
+                    value={messageLimit}
+                    onChange={(e) =>
+                      setMessageLimit(Math.max(10, Math.min(300, Number(e.target.value) || 80)))
+                    }
+                    className="h-6 w-14 rounded-lg text-center text-xs py-0"
+                  />
+                  <span>msgs</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => selected && void loadMessages(selected.id)}
+                  disabled={messagesLoading}
+                  title="Reload messages"
+                  className="size-7 text-muted-foreground hover:text-foreground"
+                >
+                  <RefreshCwIcon className={cn('size-3', messagesLoading && 'animate-spin')} />
+                </Button>
+              </div>
+            </div>
+
+            {/* Content Area: Independent Smooth Scrolling */}
+            <div className="flex-1 min-h-0 overflow-y-auto nice-scroll p-5">
+              {summaryError && (
+                <Alert variant="danger" className="mb-4">
+                  <AlertTitle>Summarization Error</AlertTitle>
+                  <AlertDescription>{summaryError}</AlertDescription>
+                </Alert>
+              )}
+
+              {/* TAB 1: SUMMARY */}
+              {detailTab === 'summary' && (
+                <div>
+                  {summaryLoading ? (
+                    <div className="flex flex-col gap-4">
+                      <Skeleton className="h-32 w-full rounded-2xl" />
+                      <Skeleton className="h-44 w-full rounded-2xl" />
+                    </div>
+                  ) : summary ? (
+                    <SummaryView summary={summary} />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="flex size-12 items-center justify-center rounded-xl bg-secondary text-muted-foreground mb-3">
+                        <SparklesIcon className="size-6" />
+                      </div>
+                      <h4 className="font-display text-sm font-semibold">No summary generated yet</h4>
+                      <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                        Click Summarize above to condense the last {messageLimit} messages from {selected.name} into a {summaryMode} briefing.
+                      </p>
+                      <Button
+                        size="sm"
+                        onClick={() => void runSummary()}
+                        className="mt-4 gap-2 text-xs"
+                      >
+                        <SparklesIcon className="size-3.5" />
+                        Generate Briefing Now
+                      </Button>
+                    </div>
                   )}
                 </div>
+              )}
 
-                <Separator />
-
-                {/* Summarize Controls & Depth Switcher */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                  <div className="flex flex-wrap items-center gap-3">
-                    {/* Summary Depth Pill Selector */}
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Summary Depth
-                      </span>
-                      <div className="flex rounded-lg border border-border bg-secondary/50 p-0.5">
-                        {(['compact', 'brief', 'detailed'] as SummaryMode[]).map((mode) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setSummaryMode(mode)}
-                            className={cn(
-                              'rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-all',
-                              summaryMode === mode
-                                ? 'bg-zinc-900 text-white shadow-xs dark:bg-white dark:text-zinc-900'
-                                : 'text-muted-foreground hover:text-foreground',
-                            )}
-                          >
-                            {mode}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Message limit */}
-                    <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Messages
-                      <Input
-                        type="number"
-                        min={10}
-                        max={300}
-                        value={messageLimit}
-                        onChange={(e) =>
-                          setMessageLimit(Math.max(10, Math.min(300, Number(e.target.value) || 80)))
-                        }
-                        className="h-8 w-20 text-xs"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => selected && void loadMessages(selected.id)}
-                      disabled={messagesLoading}
-                    >
-                      <RefreshCwIcon data-icon="inline-start" className="size-3.5" />
-                      Messages
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setDetailTab('reply')}
-                      className="gap-1.5"
-                    >
-                      <MessageSquareIcon className="size-3.5 text-zinc-600" />
-                      AI Reply
-                    </Button>
-                    <Button size="sm" onClick={() => void runSummary()} disabled={summaryLoading}>
-                      {summaryLoading ? (
-                        <Loader2Icon data-icon="inline-start" className="size-3.5 animate-spin" />
-                      ) : (
-                        <SparklesIcon data-icon="inline-start" className="size-3.5" />
-                      )}
-                      {summaryLoading ? 'Summarizing…' : 'Summarize'}
-                    </Button>
-                  </div>
-                </div>
-
-                {summaryError ? (
-                  <Alert variant="danger">
-                    <AlertTitle>Summarization failed</AlertTitle>
-                    <AlertDescription>{summaryError}</AlertDescription>
-                  </Alert>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            {/* Content Tabs */}
-            <Tabs
-              value={detailTab}
-              onValueChange={(v) => setDetailTab(v as 'summary' | 'reply' | 'messages')}
-              className="min-w-0 flex flex-1 min-h-0 flex-col overflow-hidden"
-            >
-              <TabsList className="grid w-full grid-cols-3 shrink-0">
-                <TabsTrigger value="summary">Summary</TabsTrigger>
-                <TabsTrigger value="reply" className="gap-1.5">
-                  <SparklesIcon className="size-3.5" />
-                  AI Reply
-                </TabsTrigger>
-                <TabsTrigger value="messages">Messages</TabsTrigger>
-              </TabsList>
-
-              {/* Tab 1: Summary */}
-              <TabsContent value="summary" className="min-w-0 mt-3 flex-1 min-h-0 overflow-y-auto nice-scroll pr-1">
-                {summaryLoading ? (
-                  <Card>
-                    <CardContent className="flex flex-col gap-3 p-5">
-                      <Skeleton className="h-28 rounded-2xl" />
-                      <Skeleton className="h-4 w-2/3" />
-                      <Skeleton className="h-4 w-1/2" />
-                      <Skeleton className="h-4 w-3/4" />
-                    </CardContent>
-                  </Card>
-                ) : summary ? (
-                  <SummaryView summary={summary} />
-                ) : (
-                  <Empty
-                    title="No summary yet"
-                    description={`Tap Summarize to distill the last ${messageLimit} messages from ${selected.name} in ${summaryMode} mode.`}
-                    action={
-                      <Button onClick={() => void runSummary()}>
-                        <SparklesIcon data-icon="inline-start" />
-                        Generate summary
-                      </Button>
-                    }
-                  />
-                )}
-              </TabsContent>
-
-              {/* Tab 2: AI Reply */}
-              <TabsContent value="reply" className="min-w-0 mt-3 flex-1 min-h-0 overflow-y-auto nice-scroll pr-1 flex flex-col gap-4">
-                {/* Whitelist or feature status alerts */}
-                {appSettings && !appSettings.aiReply.enabled ? (
-                  <Alert variant="warning">
-                    <AlertTriangleIcon className="size-4" />
-                    <div>
-                      <AlertTitle>AI Reply is Disabled</AlertTitle>
-                      <AlertDescription>
-                        AI replies are disabled in settings. You can re-enable this feature on the{' '}
-                        <button
-                          type="button"
-                          onClick={() => navigate('/settings')}
-                          className="font-semibold underline hover:opacity-80"
-                        >
-                          Settings page
-                        </button>
-                        .
-                      </AlertDescription>
-                    </div>
-                  </Alert>
-                ) : appSettings && !isChatAllowedForReply ? (
-                  <Alert variant="warning">
-                    <ShieldAlertIcon className="size-4" />
-                    <div>
-                      <AlertTitle>Chat Not Whitelisted</AlertTitle>
-                      <AlertDescription>
-                        Admin settings restrict AI replies to approved chats only. &ldquo;{selected.name}&rdquo; is not
-                        whitelisted. You can authorize this chat in{' '}
-                        <button
-                          type="button"
-                          onClick={() => navigate('/settings')}
-                          className="font-semibold underline hover:opacity-80"
-                        >
-                          Settings &rarr; Whitelist
-                        </button>
-                        .
-                      </AlertDescription>
-                    </div>
-                  </Alert>
-                ) : null}
-
-                {replySuccessMessage && (
-                  <Alert variant="success">
-                    <CheckCircle2Icon className="size-4" />
-                    <div>
-                      <AlertTitle>Message Dispatched</AlertTitle>
-                      <AlertDescription>{replySuccessMessage}</AlertDescription>
-                    </div>
-                  </Alert>
-                )}
-
-                {replyDraftError && (
-                  <Alert variant="danger">
-                    <AlertTriangleIcon className="size-4" />
-                    <div>
-                      <AlertTitle>Draft Generation Error</AlertTitle>
-                      <AlertDescription>{replyDraftError}</AlertDescription>
-                    </div>
-                  </Alert>
-                )}
-
-                {replySendError && (
-                  <Alert variant="danger">
-                    <AlertTriangleIcon className="size-4" />
-                    <div>
-                      <AlertTitle>Send Failed</AlertTitle>
-                      <AlertDescription>{replySendError}</AlertDescription>
-                    </div>
-                  </Alert>
-                )}
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              {/* TAB 2: AI REPLY */}
+              {detailTab === 'reply' && (
+                <div className="flex flex-col gap-4">
+                  {/* Status Banners */}
+                  {appSettings && !appSettings.aiReply.enabled ? (
+                    <Alert variant="warning">
+                      <AlertTriangleIcon className="size-4" />
                       <div>
-                        <CardTitle>Context-Aware AI Reply</CardTitle>
-                        <CardDescription>
-                          Craft a natural, human-like response tailored to the latest messages in {selected.name}.
-                        </CardDescription>
+                        <AlertTitle>AI Replies Disabled</AlertTitle>
+                        <AlertDescription>
+                          AI replies are disabled in settings.{' '}
+                          <button
+                            type="button"
+                            onClick={() => navigate('/settings')}
+                            className="font-semibold underline hover:opacity-80"
+                          >
+                            Enable in Settings
+                          </button>
+                          .
+                        </AlertDescription>
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                        <ShieldCheckIcon className="size-4 text-emerald-600" />
-                        Single Message · Human Review Required
+                    </Alert>
+                  ) : appSettings && !isChatAllowedForReply ? (
+                    <Alert variant="warning">
+                      <ShieldAlertIcon className="size-4" />
+                      <div>
+                        <AlertTitle>Chat Not Whitelisted</AlertTitle>
+                        <AlertDescription>
+                          Admin settings restrict AI replies to approved chats only. &ldquo;{selected.name}&rdquo; is not whitelisted.{' '}
+                          <button
+                            type="button"
+                            onClick={() => navigate('/settings')}
+                            className="font-semibold underline hover:opacity-80"
+                          >
+                            Authorize in Settings
+                          </button>
+                          .
+                        </AlertDescription>
                       </div>
+                    </Alert>
+                  ) : null}
+
+                  {replySuccessMessage && (
+                    <Alert variant="success">
+                      <CheckCircle2Icon className="size-4" />
+                      <div>
+                        <AlertTitle>Message Dispatched</AlertTitle>
+                        <AlertDescription>{replySuccessMessage}</AlertDescription>
+                      </div>
+                    </Alert>
+                  )}
+
+                  {replyDraftError && (
+                    <Alert variant="danger">
+                      <AlertTriangleIcon className="size-4" />
+                      <div>
+                        <AlertTitle>Draft Error</AlertTitle>
+                        <AlertDescription>{replyDraftError}</AlertDescription>
+                      </div>
+                    </Alert>
+                  )}
+
+                  {replySendError && (
+                    <Alert variant="danger">
+                      <AlertTriangleIcon className="size-4" />
+                      <div>
+                        <AlertTitle>Send Failed</AlertTitle>
+                        <AlertDescription>{replySendError}</AlertDescription>
+                      </div>
+                    </Alert>
+                  )}
+
+                  {/* AI Reply Studio Card */}
+                  <div className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-display text-sm font-semibold">Context-Aware AI Assistant</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Generates a natural, realistic WhatsApp response tailored to recent messages.
+                        </p>
+                      </div>
+                      <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                        <ShieldCheckIcon className="size-3.5 text-emerald-600" />
+                        Human Review Required
+                      </span>
                     </div>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-4">
-                    {/* Tone Selection & Guidance */}
+
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                          Reply Tone
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Tone
                         </label>
-                        <div className="flex rounded-lg border border-border bg-secondary/50 p-0.5">
+                        <div className="flex rounded-xl border border-border bg-secondary/50 p-0.5">
                           {(['casual', 'friendly', 'professional', 'concise'] as ReplyTone[]).map((t) => (
                             <button
                               key={t}
                               type="button"
                               onClick={() => setReplyTone(t)}
                               className={cn(
-                                'flex-1 rounded-md py-1.5 text-xs font-medium capitalize transition-all',
+                                'flex-1 rounded-lg py-1.5 text-xs font-medium capitalize transition-all',
                                 replyTone === t
                                   ? 'bg-zinc-900 text-white shadow-xs dark:bg-white dark:text-zinc-900'
                                   : 'text-muted-foreground hover:text-foreground',
@@ -696,14 +767,14 @@ export function ChatsView({
                       </div>
 
                       <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                          Optional Custom Direction
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Guidance (Optional)
                         </label>
                         <Input
                           value={replyInstruction}
                           onChange={(e) => setReplyInstruction(e.target.value)}
-                          placeholder="e.g. Say I'm running 15 mins late / Agree to meeting"
-                          className="text-xs"
+                          placeholder="e.g. Say I will follow up at 4 PM"
+                          className="h-9 rounded-xl text-xs"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               e.preventDefault();
@@ -714,12 +785,12 @@ export function ChatsView({
                       </div>
                     </div>
 
-                    <div className="flex justify-end">
+                    <div className="flex justify-end pt-1">
                       <Button
                         onClick={() => void generateDraft()}
                         disabled={replyDrafting || !isChatAllowedForReply}
                         size="sm"
-                        className="gap-2"
+                        className="gap-2 text-xs font-semibold"
                       >
                         {replyDrafting ? (
                           <Loader2Icon className="size-3.5 animate-spin" />
@@ -730,31 +801,28 @@ export function ChatsView({
                       </Button>
                     </div>
 
-                    {/* Draft Editor Section */}
+                    {/* Draft Review Section */}
                     {replyDraft && (
-                      <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/30 p-4 animate-fade-in">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-foreground">
-                            Draft Reply (Review & Edit before sending)
+                      <div className="mt-4 rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-foreground">
+                            Draft Reply (Review before dispatch)
                           </span>
-                          <span className="text-[11px] text-muted-foreground">
-                            {replyDraft.length} characters
-                          </span>
+                          <span className="text-muted-foreground">{replyDraft.length} characters</span>
                         </div>
 
                         <textarea
                           rows={3}
                           value={replyDraft}
                           onChange={(e) => setReplyDraft(e.target.value)}
-                          placeholder="Type or edit your reply here..."
+                          placeholder="Type or edit reply..."
                           className="w-full rounded-xl border border-input bg-card p-3 text-sm leading-relaxed focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
                         />
 
-                        {/* Alternate Suggestion Chips */}
                         {replySuggestions.length > 0 && (
-                          <div className="flex flex-col gap-1.5">
+                          <div className="space-y-1.5">
                             <span className="text-[11px] font-medium text-muted-foreground">
-                              Alternative quick variations (click to apply):
+                              Quick alternate variations (click to adopt):
                             </span>
                             <div className="flex flex-wrap gap-1.5">
                               {replySuggestions.map((sug, idx) => (
@@ -771,11 +839,10 @@ export function ChatsView({
                           </div>
                         )}
 
-                        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <ShieldCheckIcon className="size-3.5 text-emerald-600" />
-                            Target: <span className="font-semibold text-foreground">{selected.name}</span>
-                          </div>
+                        <div className="flex items-center justify-between pt-2">
+                          <span className="text-xs text-muted-foreground">
+                            Recipient: <strong className="text-foreground">{selected.name}</strong>
+                          </span>
 
                           <div className="flex items-center gap-2">
                             <Button
@@ -785,6 +852,7 @@ export function ChatsView({
                                 setReplyDraft('');
                                 setReplySuggestions([]);
                               }}
+                              className="text-xs"
                             >
                               Discard
                             </Button>
@@ -792,7 +860,7 @@ export function ChatsView({
                               onClick={() => setShowConfirmDialog(true)}
                               disabled={replySending || !replyDraft.trim() || !isChatAllowedForReply}
                               size="sm"
-                              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
                             >
                               <SendIcon className="size-3.5" />
                               Send to WhatsApp
@@ -801,61 +869,55 @@ export function ChatsView({
                         </div>
                       </div>
                     )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
+                  </div>
+                </div>
+              )}
 
-              {/* Tab 3: Messages */}
-              <TabsContent value="messages" className="min-w-0 mt-3 flex-1 min-h-0 overflow-hidden flex flex-col">
-                <Card className="flex flex-1 min-h-0 flex-col overflow-hidden">
-                  <CardHeader className="shrink-0 pb-3">
-                    <CardTitle>Recent messages</CardTitle>
-                    <CardDescription>Chronological context used for summaries and AI replies.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-1 min-h-0 flex-col overflow-hidden p-4 pt-0 sm:p-5 sm:pt-0">
-                    {messagesLoading ? (
-                      <div className="flex flex-col gap-3">
-                        {Array.from({ length: 4 }).map((_, i) => (
-                          <div key={i} className="flex gap-3">
-                            <Skeleton className="size-8 rounded-full" />
-                            <div className="flex flex-1 flex-col gap-1.5">
-                              <Skeleton className="h-3 w-28" />
-                              <Skeleton className="h-4 w-3/4" />
-                            </div>
+              {/* TAB 3: MESSAGES */}
+              {detailTab === 'messages' && (
+                <div className="h-full flex flex-col">
+                  {messagesLoading ? (
+                    <div className="flex flex-col gap-3">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="flex gap-3">
+                          <Skeleton className="size-8 rounded-full shrink-0" />
+                          <div className="flex flex-1 flex-col gap-1.5">
+                            <Skeleton className="h-3 w-28" />
+                            <Skeleton className="h-4 w-3/4" />
                           </div>
-                        ))}
-                      </div>
-                    ) : messagesError ? (
-                      <Alert variant="danger">
-                        <AlertTitle>Couldn&apos;t load messages</AlertTitle>
-                        <AlertDescription>{messagesError}</AlertDescription>
-                      </Alert>
-                    ) : (
-                      <MessageList messages={messages} />
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+                        </div>
+                      ))}
+                    </div>
+                  ) : messagesError ? (
+                    <Alert variant="danger">
+                      <AlertTitle>Couldn&apos;t load messages</AlertTitle>
+                      <AlertDescription>{messagesError}</AlertDescription>
+                    </Alert>
+                  ) : (
+                    <MessageList messages={messages} />
+                  )}
+                </div>
+              )}
+            </div>
 
-            {/* Anti-Bulk Send Confirmation Modal */}
+            {/* Anti-Bulk Confirmation Modal */}
             <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <ShieldCheckIcon className="size-5 text-emerald-600" />
-                    Confirm Single WhatsApp Message
+                    Confirm WhatsApp Message
                   </DialogTitle>
                   <DialogDescription>
-                    Please review your message before dispatching. Relay sends strictly one message at a time; no bulk sending is permitted.
+                    Review your reply before sending. Relay sends single messages only with no bulk sending allowed.
                   </DialogDescription>
                 </DialogHeader>
 
                 <div className="my-2 rounded-xl border border-border bg-muted/40 p-3.5">
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Recipient:</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">To:</p>
                   <p className="text-sm font-semibold text-foreground">{selected?.name}</p>
-                  <Separator className="my-2" />
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Message Text:</p>
+                  <div className="my-2 border-t border-border" />
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Message:</p>
                   <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                     {replyDraft}
                   </p>
@@ -879,7 +941,7 @@ export function ChatsView({
                     ) : (
                       <SendIcon className="size-4" />
                     )}
-                    {replySending ? 'Sending…' : 'Send Now'}
+                    {replySending ? 'Sending…' : 'Confirm & Send'}
                   </Button>
                 </DialogFooter>
               </DialogContent>

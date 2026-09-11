@@ -110,12 +110,23 @@ export default function App() {
           isChatsPage && 'lg:h-[calc(100vh-2rem)] lg:max-h-[calc(100vh-2rem)] lg:overflow-hidden',
         )}
       >
-        <TopBar
-          wa={waPoll.data}
-          onReload={reloadAll}
-          refreshing={chatsPoll.refreshing || waPoll.refreshing}
-          onOpenChats={goToChats}
-        />
+        {!isChatsPage ? (
+          <TopBar
+            wa={waPoll.data}
+            onReload={reloadAll}
+            refreshing={chatsPoll.refreshing || waPoll.refreshing}
+            onOpenChats={goToChats}
+          />
+        ) : (
+          <div className="lg:hidden">
+            <TopBar
+              wa={waPoll.data}
+              onReload={reloadAll}
+              refreshing={chatsPoll.refreshing || waPoll.refreshing}
+              onOpenChats={goToChats}
+            />
+          </div>
+        )}
 
         <main
           className={cn(
