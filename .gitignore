@@ -37,3 +37,6 @@ Thumbs.db
 *.tsbuildinfo
 .playwright-mcp/
 *.png
+
+# Documentation & local design docs
+docs/
