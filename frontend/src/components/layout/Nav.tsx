@@ -6,6 +6,7 @@ import {
   LayoutDashboardIcon,
   MessagesSquareIcon,
   QrCodeIcon,
+  SettingsIcon,
   SparklesIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,7 @@ import { cn } from '@/lib/utils';
 export const NAV_ITEMS = [
   { path: '/', label: 'Overview', icon: LayoutDashboardIcon, hint: 'Catch up' },
   { path: '/chats', label: 'Chats', icon: MessagesSquareIcon, hint: 'Summarize' },
+  { path: '/settings', label: 'Settings', icon: SettingsIcon, hint: 'Preferences' },
   { path: '/connect', label: 'Connect', icon: QrCodeIcon, hint: 'Pair phone' },
   { path: '/system', label: 'System', icon: ActivityIcon, hint: 'Health + API' },
 ];
@@ -34,7 +36,7 @@ export function Sidebar({
   const connected = wa?.state === 'READY' || wa?.state === 'AUTHENTICATED';
 
   return (
-    <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-60 shrink-0 flex-col justify-between rounded-2xl border border-border bg-card p-3 shadow-card lg:flex">
+    <aside className="sticky top-4 self-start hidden h-[calc(100vh-2rem)] w-60 shrink-0 flex-col justify-between rounded-2xl border border-border bg-card p-3 shadow-card lg:flex">
       <div className="flex flex-col gap-3">
         <button
           type="button"
@@ -162,7 +164,7 @@ export function MobileNav({
   return (
     <nav
       aria-label="Primary mobile"
-      className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-4 gap-1 rounded-2xl border border-border bg-card/95 p-1.5 shadow-pop backdrop-blur lg:hidden"
+      className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 gap-1 rounded-2xl border border-border bg-card/95 p-1.5 shadow-pop backdrop-blur lg:hidden"
       style={{ paddingBottom: 'calc(0.375rem + env(safe-area-inset-bottom))' }}
     >
       {NAV_ITEMS.map((n) => {

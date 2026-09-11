@@ -63,9 +63,31 @@ export const api = {
       `/api/v1/chats/${encodeURIComponent(chatId)}/messages?limit=${limit}`,
     ),
 
-  summarize: (body: { chatId: string; messageLimit?: number; model?: string }) =>
+  summarize: (body: { chatId: string; messageLimit?: number; mode?: import('./types').SummaryMode; model?: string }) =>
     request<import('./types').ApiEnvelope<import('./types').ChatSummary>>('/api/v1/summarize', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  settings: {
+    get: () => request<import('./types').ApiEnvelope<import('./types').AppSettings>>('/api/v1/settings'),
+    update: (data: Partial<import('./types').AppSettings>) =>
+      request<import('./types').ApiEnvelope<import('./types').AppSettings>>('/api/v1/settings', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+  },
+
+  reply: {
+    draft: (body: { chatId: string; instruction?: string; tone?: import('./types').ReplyTone; messageLimit?: number }) =>
+      request<import('./types').ApiEnvelope<import('./types').ReplyDraftResponse>>('/api/v1/reply/draft', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    send: (body: { chatId: string; message: string }) =>
+      request<import('./types').ApiEnvelope<import('./types').ReplySendResponse>>('/api/v1/reply/send', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  },
 };

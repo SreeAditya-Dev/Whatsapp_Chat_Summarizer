@@ -1,7 +1,7 @@
 import { Mistral } from '@mistralai/mistralai';
 import { env } from '../config/env';
 import { ISummarizer, SummarizeOptions } from '../core/interfaces/summarizer.interface';
-import { IChatMessage, IChatSummary, UrgencyLevel } from '../core/types/summary.types';
+import { IActionItem, IChatMessage, IChatSummary, UrgencyLevel } from '../core/types/summary.types';
 import { logger } from '../utils/logger';
 import { MessageFormatterService } from './message-formatter.service';
 
@@ -44,7 +44,32 @@ export class MistralSummarizerService implements ISummarizer {
       'Sending chat transcript to Mistral AI for summarization'
     );
 
+    const mode = options.mode || 'brief';
+    let depthInstructions = '';
+    if (mode === 'compact') {
+      depthInstructions = `
+DEPTH MODE: COMPACT
+- Keep "tldr" strictly to 1 or 2 punchy, high-impact sentences.
+- Limit "keyTopics" to only the top 2-3 most critical points.
+- Extract only urgent/major action items and firm decisions.
+- Keep the summary minimal, high-signal, and quick to scan.`;
+    } else if (mode === 'detailed') {
+      depthInstructions = `
+DEPTH MODE: DETAILED / EXPANDED
+- Provide a rich, thorough "tldr" of 3 to 5 sentences covering background, ongoing discussions, and outcomes.
+- Include all key topics with detailed context, quoting relevant specifics or participants when helpful.
+- List all commitments, questions, and assigned tasks in actionItems with assignees and due dates.
+- Document all consensus, agreements, and decisions with their rationales.
+- Extract all dates, deadlines, URLs, and references.`;
+    } else {
+      depthInstructions = `
+DEPTH MODE: BRIEF (BALANCED)
+- Provide a balanced 2 to 3 sentence executive summary.
+- Highlight 3-5 main topics, clear action items, decisions, and important links.`;
+    }
+
     const systemPrompt = `You are an expert executive communication assistant. Your task is to analyze WhatsApp chat transcripts (from a group or personal chat) and generate an accurate, comprehensive, context-aware summary.
+${depthInstructions}
 
 CRITICAL GUIDELINES:
 1. Maintain Context: Keep track of who is talking to whom, especially with replies and discussions.
@@ -168,40 +193,39 @@ Please analyze the above conversation and provide the structured summary in the 
       };
 
       const normalizeActionItems = (items: unknown[]): IActionItem[] => {
-        return items
-          .map((a) => {
-            if (typeof a === 'string') {
-              return { task: a, assignee: undefined, dueDate: undefined };
-            }
-            if (a && typeof a === 'object') {
-              const obj = a as Record<string, unknown>;
-              const task =
-                typeof obj.task === 'string'
-                  ? obj.task
-                  : obj.task
-                    ? normalizeString(obj.task)
-                    : obj.action || obj.description || normalizeString(obj);
-              const assignee =
-                typeof obj.assignee === 'string'
-                  ? obj.assignee
-                  : obj.owner
-                    ? String(obj.owner)
-                    : undefined;
-              const dueDate =
-                typeof obj.dueDate === 'string'
-                  ? obj.dueDate
-                  : obj.deadline || obj.due || obj.date
-                    ? String(obj.deadline || obj.due || obj.date)
-                    : undefined;
-              return {
-                task: task ? String(task) : 'Unspecified task',
-                assignee: assignee || undefined,
-                dueDate: dueDate || undefined,
-              };
-            }
-            return null;
-          })
-          .filter((a): a is IActionItem => a !== null && Boolean(a.task));
+        const mapped: (IActionItem | null)[] = items.map((a) => {
+          if (typeof a === 'string') {
+            return { task: a };
+          }
+          if (a && typeof a === 'object') {
+            const obj = a as Record<string, unknown>;
+            const task =
+              typeof obj.task === 'string'
+                ? obj.task
+                : obj.task
+                  ? normalizeString(obj.task)
+                  : obj.action || obj.description || normalizeString(obj);
+            const assignee =
+              typeof obj.assignee === 'string'
+                ? obj.assignee
+                : obj.owner
+                  ? String(obj.owner)
+                  : undefined;
+            const dueDate =
+              typeof obj.dueDate === 'string'
+                ? obj.dueDate
+                : obj.deadline || obj.due || obj.date
+                  ? String(obj.deadline || obj.due || obj.date)
+                  : undefined;
+            return {
+              task: task ? String(task) : 'Unspecified task',
+              assignee: assignee || undefined,
+              dueDate: dueDate || undefined,
+            };
+          }
+          return null;
+        });
+        return mapped.filter((a): a is IActionItem => a !== null && Boolean(a.task));
       };
 
       return {
@@ -230,6 +254,93 @@ Please analyze the above conversation and provide the structured summary in the 
         importantLinksAndDates: [],
         urgencyLevel: 'MEDIUM',
       };
+    }
+  }
+
+  /**
+   * Generate a context-aware, human-sounding reply to a conversation.
+   * Tailored for WhatsApp style (natural, concise, non-robotic).
+   */
+  async generateReply(options: {
+    chatId: string;
+    chatName: string;
+    isGroup: boolean;
+    messages: IChatMessage[];
+    instruction?: string;
+    tone?: 'casual' | 'friendly' | 'professional' | 'concise';
+    senderPersona?: string;
+    model?: string;
+  }): Promise<{ reply: string; suggestions: string[] }> {
+    const modelToUse = options.model || this.defaultModel;
+    const tone = options.tone || 'casual';
+
+    const formattedTranscript = MessageFormatterService.formatForLLM(
+      options.messages,
+      25000,
+      0
+    );
+
+    const systemPrompt = `You are a thoughtful personal assistant drafting a context-aware WhatsApp reply on behalf of the user.
+
+CHAT CONTEXT:
+Chat: "${options.chatName}" (${options.isGroup ? 'Group Conversation' : 'Direct 1-on-1 Chat'})
+Desired Tone: "${tone}" (casual, friendly, professional, or concise)
+${options.instruction ? `User's guidance/intent: "${options.instruction}"` : 'Understand the dialogue flow and draft the most natural, fitting response.'}
+${options.senderPersona ? `User's persona/style: "${options.senderPersona}"` : ''}
+
+STRICT GUIDELINES FOR HUMAN-LIKE REPLIES:
+1. Speak genuinely like a real human texting on WhatsApp.
+2. Absolutely NO corporate robot clichés ("I hope this message finds you well", "As an AI language model", formal signatures, or stiff preamble).
+3. Match typical WhatsApp brevity: usually 1 to 2 sentences (at most 3 sentences if answering specific questions).
+4. Use natural conversational contractions and pacing (e.g. "I'll", "Sounds good!", "Thanks for checking in", "Let's do that").
+5. If the user provided specific guidance (e.g., "say I can make it at 6pm"), faithfully adhere to that intent while sounding smooth and polite.
+6. Provide:
+   - "reply": The best primary drafted response text.
+   - "suggestions": Exactly 2 to 3 short alternate variations (e.g. one ultra-brief/affirmative, one polite follow-up).
+
+Respond STRICTLY in valid JSON matching this schema:
+{
+  "reply": "The primary response text to send",
+  "suggestions": ["Short alternative 1", "Alternative 2"]
+}`;
+
+    const userPrompt = `Here is the recent chat transcript:
+--- TRANSCRIPT START ---
+${formattedTranscript.transcript}
+--- TRANSCRIPT END ---
+
+Draft the WhatsApp reply in the requested JSON format.`;
+
+    try {
+      const response = await this.client.chat.complete({
+        model: modelToUse,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        responseFormat: { type: 'json_object' },
+        temperature: 0.4,
+      });
+
+      const raw = response.choices?.[0]?.message?.content;
+      if (!raw) throw new Error('Empty reply generated by AI');
+
+      const cleaned = (typeof raw === 'string' ? raw : JSON.stringify(raw))
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+      const parsed = JSON.parse(cleaned);
+      return {
+        reply: typeof parsed.reply === 'string' ? parsed.reply.trim() : String(parsed.reply || ''),
+        suggestions: Array.isArray(parsed.suggestions)
+          ? parsed.suggestions.map((s: unknown) => String(s)).filter(Boolean)
+          : [],
+      };
+    } catch (err: any) {
+      logger.error({ error: err.message, chatId: options.chatId }, 'Failed to generate AI reply');
+      throw new Error(`AI reply generation failed: ${err.message}`);
     }
   }
 }

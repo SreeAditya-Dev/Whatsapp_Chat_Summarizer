@@ -12,6 +12,8 @@ import { createHealthRouter } from './routes/v1/health.route';
 import { createWhatsAppRouter } from './routes/v1/whatsapp.route';
 import { createChatsRouter } from './routes/v1/chats.route';
 import { createSummaryRouter } from './routes/v1/summary.route';
+import { createReplyRouter } from './routes/v1/reply.route';
+import { createSettingsRouter } from './routes/v1/settings.route';
 import { createQrPageRouter } from './routes/qr-page.route';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
@@ -96,6 +98,12 @@ export function createExpressApp(
 
   // Summarize endpoint (rate limited + protected by optional API key)
   v1Router.use('/summarize', summarizeLimiter, apiKeyAuth, createSummaryRouter(chatProvider, summarizer));
+
+  // AI Reply endpoints (draft and send)
+  v1Router.use('/reply', summarizeLimiter, apiKeyAuth, createReplyRouter(chatProvider, summarizer));
+
+  // Settings endpoints (get and update preferences)
+  v1Router.use('/settings', apiKeyAuth, createSettingsRouter());
 
   // Mount v1 router under /api/v1
   app.use('/api/v1', v1Router);

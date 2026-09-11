@@ -400,6 +400,42 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
     return parsedMessages;
   }
 
+  /**
+   * Send a single message to a chat (person or group).
+   * Strictly single-message send to prevent any bulk sending or spamming.
+   */
+  async sendMessage(chatId: string, message: string): Promise<{ messageId: string; timestamp: Date }> {
+    this.ensureReady();
+    if (!message || !message.trim()) {
+      throw HttpError.badRequest('Message content cannot be empty', 'INVALID_MESSAGE');
+    }
+
+    let targetChat: Chat;
+    try {
+      targetChat = await this.client!.getChatById(chatId);
+    } catch (err: any) {
+      const chats = await this.safeGetChats();
+      const lower = chatId.toLowerCase();
+      const found = chats.find(
+        (c) =>
+          c.name?.toLowerCase().includes(lower) ||
+          (c as any).formattedTitle?.toLowerCase().includes(lower)
+      );
+      if (!found) {
+        throw HttpError.notFound(`Chat not found for identifier: "${chatId}"`, 'CHAT_NOT_FOUND');
+      }
+      targetChat = found;
+    }
+
+    logger.info({ chatId: targetChat.id._serialized, chatName: targetChat.name }, 'Sending single WhatsApp message');
+    const sent = await targetChat.sendMessage(message.trim());
+
+    return {
+      messageId: sent.id._serialized,
+      timestamp: new Date(sent.timestamp * 1000),
+    };
+  }
+
   async disconnect(): Promise<void> {
     if (this.client) {
       try {

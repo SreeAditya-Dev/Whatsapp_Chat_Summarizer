@@ -7,6 +7,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OverviewView } from '@/components/features/OverviewView';
 import { ChatsView } from '@/components/features/ChatsView';
 import { ConnectView } from '@/components/features/ConnectView';
+import { SettingsView } from '@/components/features/SettingsView';
 import { SystemView } from '@/components/features/SystemView';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { usePolling } from '@/hooks/usePolling';
@@ -92,7 +93,7 @@ export default function App() {
     !healthPoll.loading && !healthPoll.data && !!healthPoll.error && !!chatsPoll.error;
 
   return (
-    <div className="app-texture min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="app-texture min-h-screen bg-background text-foreground overflow-x-clip">
       <div className="mx-auto flex min-h-screen w-full max-w-[1600px] min-w-0 gap-4 px-4 py-4 lg:px-5">
       <Sidebar
         wa={waPoll.data}
@@ -100,7 +101,7 @@ export default function App() {
         model={healthPoll.data?.services.ai.model}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col gap-4">
         <TopBar
           wa={waPoll.data}
           onReload={reloadAll}
@@ -171,6 +172,10 @@ export default function App() {
                   }
                 />
               }
+            />
+            <Route
+              path="/settings"
+              element={<SettingsView chats={chats} />}
             />
             <Route
               path="/connect"

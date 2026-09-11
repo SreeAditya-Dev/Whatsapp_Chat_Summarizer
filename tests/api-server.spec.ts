@@ -77,6 +77,14 @@ class MockChatProvider implements IChatProvider {
     ];
   }
 
+  async sendMessage(chatId: string, message: string): Promise<{ messageId: string; timestamp: Date }> {
+    this.ensureReady();
+    if (!message.trim()) {
+      throw HttpError.badRequest('Message content cannot be empty', 'INVALID_MESSAGE');
+    }
+    return { messageId: 'msg-test-123', timestamp: new Date() };
+  }
+
   async disconnect(): Promise<void> {}
 }
 
@@ -227,6 +235,74 @@ describe('Express REST API (v1)', () => {
     expect(sumRes.status).toBe(503);
     expect(sumRes.body.success).toBe(false);
     expect(sumRes.body.error.code).toBe('WHATSAPP_NOT_READY');
+  });
+
+  it('GET /api/v1/settings and PUT /api/v1/settings should retrieve and update configuration', async () => {
+    const getRes = await request(app).get('/api/v1/settings');
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.success).toBe(true);
+    expect(getRes.body.data.summary).toBeDefined();
+    expect(getRes.body.data.aiReply).toBeDefined();
+
+    const putRes = await request(app)
+      .put('/api/v1/settings')
+      .send({
+        summary: { defaultDepth: 'detailed', defaultMessageLimit: 120 },
+        aiReply: { defaultTone: 'friendly', whitelistMode: 'selected', allowedChatIds: ['chat-1'] },
+      });
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.data.summary.defaultDepth).toBe('detailed');
+    expect(putRes.body.data.summary.defaultMessageLimit).toBe(120);
+    expect(putRes.body.data.aiReply.allowedChatIds).toContain('chat-1');
+  });
+
+  it('POST /api/v1/reply/draft and /api/v1/reply/send should enforce whitelist access and dispatch single messages', async () => {
+    // Whitelist chat-1 only
+    await request(app)
+      .put('/api/v1/settings')
+      .send({
+        aiReply: { enabled: true, whitelistMode: 'selected', allowedChatIds: ['chat-1'] },
+      });
+
+    // Drafting for whitelisted chat-1 should succeed
+    const draftRes = await request(app)
+      .post('/api/v1/reply/draft')
+      .send({ chatId: 'chat-1', tone: 'casual' });
+    expect(draftRes.status).toBe(200);
+    expect(draftRes.body.success).toBe(true);
+    expect(draftRes.body.data.reply).toBeDefined();
+
+    // Drafting for non-whitelisted chat-3 should be forbidden (403)
+    const blockedDraftRes = await request(app)
+      .post('/api/v1/reply/draft')
+      .send({ chatId: 'chat-3', tone: 'casual' });
+    expect(blockedDraftRes.status).toBe(403);
+    expect(blockedDraftRes.body.error.code).toBe('CHAT_NOT_ALLOWED');
+
+    // Sending for whitelisted chat-1 should deliver single message
+    const sendRes = await request(app)
+      .post('/api/v1/reply/send')
+      .send({ chatId: 'chat-1', message: 'Hello team!' });
+    expect(sendRes.status).toBe(200);
+    expect(sendRes.body.success).toBe(true);
+    expect(sendRes.body.data.delivered).toBe(true);
+    expect(sendRes.body.data.messageId).toBe('msg-test-123');
+
+    // Sending to non-whitelisted chat-3 should be rejected with 403
+    const blockedSendRes = await request(app)
+      .post('/api/v1/reply/send')
+      .send({ chatId: 'chat-3', message: 'Hello' });
+    expect(blockedSendRes.status).toBe(403);
+    expect(blockedSendRes.body.error.code).toBe('CHAT_NOT_ALLOWED');
+  });
+
+  it('POST /api/v1/summarize should support mode parameter (compact, brief, detailed)', async () => {
+    const res = await request(app)
+      .post('/api/v1/summarize')
+      .send({ chatId: 'chat-1', mode: 'compact' });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.tldr).toBeDefined();
   });
 });
 

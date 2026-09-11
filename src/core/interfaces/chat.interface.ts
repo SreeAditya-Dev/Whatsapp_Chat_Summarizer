@@ -19,5 +19,6 @@ export interface IChatProvider {
   getRecentChats(pagination?: PaginationParams, filter?: ChatFilterType): Promise<PaginatedResult<IChatInfo>>;
   getChatById(chatId: string): Promise<IChatInfo | null>;
   getChatMessages(chatId: string, limit?: number): Promise<IChatMessage[]>;
+  sendMessage(chatId: string, message: string): Promise<{ messageId: string; timestamp: Date }>;
   disconnect(): Promise<void>;
 }

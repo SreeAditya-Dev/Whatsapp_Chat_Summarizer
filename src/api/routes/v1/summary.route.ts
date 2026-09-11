@@ -15,6 +15,7 @@ const summarizeRequestSchema = z.object({
     .min(APP_CONSTANTS.MIN_SUMMARY_MESSAGE_LIMIT)
     .max(APP_CONSTANTS.MAX_SUMMARY_MESSAGE_LIMIT)
     .optional(),
+  mode: z.enum(['compact', 'brief', 'detailed']).optional(),
   model: z.string().optional(),
 });
 
@@ -39,7 +40,7 @@ export function createSummaryRouter(
         );
       }
 
-      const { chatId, messageLimit, model } = parsedBody.data;
+      const { chatId, messageLimit, mode, model } = parsedBody.data;
 
       const chatInfo = await chatProvider.getChatById(chatId);
       const realChatId = chatInfo?.id ?? chatId;
@@ -68,6 +69,7 @@ export function createSummaryRouter(
         chatName,
         isGroup,
         unreadCount,
+        mode: mode || 'brief',
         model: model || env.MISTRAL_MODEL,
       });
 

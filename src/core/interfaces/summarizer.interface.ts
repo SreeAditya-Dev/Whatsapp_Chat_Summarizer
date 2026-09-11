@@ -5,6 +5,7 @@ export interface SummarizeOptions {
   chatName: string;
   isGroup: boolean;
   unreadCount?: number;
+  mode?: 'compact' | 'brief' | 'detailed';
   model?: string;
   maxTokens?: number;
 }

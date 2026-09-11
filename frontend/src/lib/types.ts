@@ -91,3 +91,39 @@ export interface HealthData {
 }
 
 export type ChatFilter = 'all' | 'groups' | 'direct' | 'unread';
+
+export type SummaryMode = 'compact' | 'brief' | 'detailed';
+
+export type ReplyTone = 'casual' | 'friendly' | 'professional' | 'concise';
+
+export interface ReplyDraftResponse {
+  chatId: string;
+  chatName: string;
+  isGroup: boolean;
+  reply: string;
+  suggestions: string[];
+}
+
+export interface ReplySendResponse {
+  delivered: boolean;
+  chatId: string;
+  chatName: string;
+  messageId: string;
+  timestamp: string;
+  sentText: string;
+}
+
+export interface AppSettings {
+  summary: {
+    defaultDepth: SummaryMode;
+    defaultMessageLimit: number;
+  };
+  aiReply: {
+    enabled: boolean;
+    requireReview: boolean;
+    defaultTone: ReplyTone;
+    customPersona: string;
+    whitelistMode: 'all' | 'selected';
+    allowedChatIds: string[];
+  };
+}

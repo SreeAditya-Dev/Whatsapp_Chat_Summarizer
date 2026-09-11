@@ -24,6 +24,10 @@ export class HttpError extends Error {
     return new HttpError(401, code, message);
   }
 
+  static forbidden(message = 'Forbidden', code = 'FORBIDDEN'): HttpError {
+    return new HttpError(403, code, message);
+  }
+
   static serviceUnavailable(message = 'Service unavailable', code = 'SERVICE_UNAVAILABLE'): HttpError {
     return new HttpError(503, code, message);
   }
