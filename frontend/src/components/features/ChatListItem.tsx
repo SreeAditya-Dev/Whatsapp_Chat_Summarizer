@@ -1,17 +1,20 @@
-import { UsersIcon, UserIcon } from 'lucide-react';
+import { UsersIcon, UserIcon, CheckIcon, PhoneIcon } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { avatarTone, initials, timeAgo } from '@/lib/format';
+import { avatarTone, initials, timeAgo, getChatDisplayNumber } from '@/lib/format';
 import type { ChatInfo } from '@/lib/types';
 
 interface Props {
   chat: ChatInfo;
   selected?: boolean;
+  isWhitelisted?: boolean;
   onSelect: (chat: ChatInfo) => void;
 }
 
-export function ChatListItem({ chat, selected, onSelect }: Props) {
+export function ChatListItem({ chat, selected, isWhitelisted, onSelect }: Props) {
+  const displayNumber = getChatDisplayNumber(chat);
+
   return (
     <button
       type="button"
@@ -36,14 +39,30 @@ export function ChatListItem({ chat, selected, onSelect }: Props) {
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center justify-between gap-2">
-          <p
-            className={cn(
-              'truncate text-[13px] font-semibold tracking-tight',
-              selected ? 'text-white dark:text-zinc-900' : 'text-foreground',
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p
+              className={cn(
+                'truncate text-[13px] font-semibold tracking-tight',
+                selected ? 'text-white dark:text-zinc-900' : 'text-foreground',
+              )}
+            >
+              {chat.name}
+            </p>
+            {isWhitelisted && (
+              <span
+                title="AI replies allowed by admin whitelist"
+                className={cn(
+                  'inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-semibold shrink-0',
+                  selected
+                    ? 'bg-emerald-500/25 text-emerald-200 dark:bg-emerald-500/25 dark:text-emerald-800'
+                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+                )}
+              >
+                <CheckIcon className="size-2.5" /> AI
+              </span>
             )}
-          >
-            {chat.name}
-          </p>
+          </div>
+
           <span
             className={cn(
               'shrink-0 text-[11px]',
@@ -57,16 +76,29 @@ export function ChatListItem({ chat, selected, onSelect }: Props) {
         <div className="flex items-center justify-between gap-2">
           <span
             className={cn(
-              'flex items-center gap-1.5 text-[11px]',
+              'flex items-center gap-1.5 text-[11px] truncate',
               selected ? 'text-zinc-300 dark:text-zinc-600' : 'text-muted-foreground',
             )}
           >
-            {chat.isGroup ? <UsersIcon className="size-3" /> : <UserIcon className="size-3" />}
-            <span className="truncate">
-              {chat.isGroup
-                ? `Group${typeof chat.participantCount === 'number' ? ` · ${chat.participantCount}` : ''}`
-                : 'Direct'}
-            </span>
+            {chat.isGroup ? (
+              <>
+                <UsersIcon className="size-3 shrink-0" />
+                <span className="truncate">
+                  Group{typeof chat.participantCount === 'number' ? ` · ${chat.participantCount}` : ''}
+                </span>
+              </>
+            ) : (
+              <>
+                {displayNumber ? (
+                  <PhoneIcon className="size-3 shrink-0 opacity-70" />
+                ) : (
+                  <UserIcon className="size-3 shrink-0" />
+                )}
+                <span className="truncate">
+                  {displayNumber ? displayNumber : 'Direct'}
+                </span>
+              </>
+            )}
           </span>
 
           {chat.unreadCount > 0 && (

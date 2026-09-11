@@ -105,10 +105,37 @@ export class SettingsService {
     return updated;
   }
 
-  static isChatAllowedForReply(chatId: string): boolean {
+  static isChatAllowedForReply(chatId: string, additionalIdentifiers: string[] = []): boolean {
     const settings = this.getSettings();
     if (!settings.aiReply.enabled) return false;
     if (settings.aiReply.whitelistMode === 'all') return true;
-    return settings.aiReply.allowedChatIds.includes(chatId);
+
+    const candidates = [chatId, ...additionalIdentifiers].filter(Boolean);
+
+    // 1. Direct match on any candidate identifier
+    for (const c of candidates) {
+      if (settings.aiReply.allowedChatIds.includes(c)) return true;
+    }
+
+    // 2. Normalized digit matching for phone numbers (ignores spaces, dashes, +, @c.us)
+    for (const c of candidates) {
+      const cDigits = c.replace(/\D/g, '');
+      if (cDigits.length >= 6) {
+        for (const allowed of settings.aiReply.allowedChatIds) {
+          const allowedDigits = allowed.replace(/\D/g, '');
+          if (allowedDigits.length >= 6) {
+            if (
+              allowedDigits === cDigits ||
+              cDigits.endsWith(allowedDigits) ||
+              allowedDigits.endsWith(cDigits)
+            ) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+
+    return false;
   }
 }

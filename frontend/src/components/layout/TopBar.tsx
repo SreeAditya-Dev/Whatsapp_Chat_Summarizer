@@ -9,6 +9,7 @@ const TITLES: Record<string, { title: string; sub: string }> = {
   '/overview': { title: 'Good day', sub: 'Here is what needs you most.' },
   '/chats': { title: 'Chats', sub: 'Pick a conversation, get the brief.' },
   '/connect': { title: 'Connect', sub: 'Pair WhatsApp once, stay linked.' },
+  '/settings': { title: 'Settings', sub: 'Configure summaries, AI replies, and approved whitelist.' },
   '/system': { title: 'System', sub: 'Health, model, and API surface.' },
 };
 

@@ -38,6 +38,8 @@ export interface IChatInfo {
   unreadCount: number;
   lastMessageTimestamp?: number;
   participantCount?: number;
+  phoneNumber?: string;
+  formattedTitle?: string;
 }
 
 export interface IChatMessage {

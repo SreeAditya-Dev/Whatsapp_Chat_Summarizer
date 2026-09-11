@@ -47,18 +47,23 @@ export function createReplyRouter(
         throw HttpError.forbidden('AI replies are currently disabled in Settings.', 'AI_REPLIES_DISABLED');
       }
 
-      const isAllowed = SettingsService.isChatAllowedForReply(chatId);
+      const chatInfo = await chatProvider.getChatById(chatId);
+      const realChatId = chatInfo?.id ?? chatId;
+      const chatName = chatInfo ? chatInfo.name : chatId;
+      const isGroup = chatInfo ? chatInfo.isGroup : false;
+
+      const additionalIdentifiers: string[] = [];
+      if (chatInfo?.id) additionalIdentifiers.push(chatInfo.id);
+      if (chatInfo?.phoneNumber) additionalIdentifiers.push(chatInfo.phoneNumber);
+      if (chatInfo?.name) additionalIdentifiers.push(chatInfo.name);
+
+      const isAllowed = SettingsService.isChatAllowedForReply(chatId, additionalIdentifiers);
       if (!isAllowed) {
         throw HttpError.forbidden(
           'This chat is not on the admin-approved whitelist for AI replies. Check Settings.',
           'CHAT_NOT_ALLOWED'
         );
       }
-
-      const chatInfo = await chatProvider.getChatById(chatId);
-      const realChatId = chatInfo?.id ?? chatId;
-      const chatName = chatInfo ? chatInfo.name : chatId;
-      const isGroup = chatInfo ? chatInfo.isGroup : false;
 
       const messages = await chatProvider.getChatMessages(realChatId, messageLimit || 15);
       if (messages.length === 0) {
@@ -119,17 +124,22 @@ export function createReplyRouter(
         throw HttpError.forbidden('AI replies are currently disabled in Settings.', 'AI_REPLIES_DISABLED');
       }
 
-      const isAllowed = SettingsService.isChatAllowedForReply(chatId);
+      const chatInfo = await chatProvider.getChatById(chatId);
+      const realChatId = chatInfo?.id ?? chatId;
+      const chatName = chatInfo ? chatInfo.name : chatId;
+
+      const additionalIdentifiers: string[] = [];
+      if (chatInfo?.id) additionalIdentifiers.push(chatInfo.id);
+      if (chatInfo?.phoneNumber) additionalIdentifiers.push(chatInfo.phoneNumber);
+      if (chatInfo?.name) additionalIdentifiers.push(chatInfo.name);
+
+      const isAllowed = SettingsService.isChatAllowedForReply(chatId, additionalIdentifiers);
       if (!isAllowed) {
         throw HttpError.forbidden(
           'Sending to this chat is not permitted by whitelist settings.',
           'CHAT_NOT_ALLOWED'
         );
       }
-
-      const chatInfo = await chatProvider.getChatById(chatId);
-      const realChatId = chatInfo?.id ?? chatId;
-      const chatName = chatInfo ? chatInfo.name : chatId;
 
       logger.info({ chatId: realChatId, chatName }, 'Dispatching single human-approved reply');
       const sendResult = await chatProvider.sendMessage(realChatId, message);

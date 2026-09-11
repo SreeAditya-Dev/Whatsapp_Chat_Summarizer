@@ -264,15 +264,40 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
       const chat = await this.client!.getChatById(chatId);
       if (chat) return this.mapChatToInfo(chat);
     } catch (err: any) {
-      logger.debug({ err: err?.message, chatId }, 'Exact ID lookup failed, trying name search fallback');
+      logger.debug({ err: err?.message, chatId }, 'Exact ID lookup failed, trying fallback search');
+    }
+
+    try {
+      // If chatId looks like a pure phone number (no @), try direct contact lookup with @c.us
+      const cleanDigits = chatId.replace(/\D/g, '');
+      if (cleanDigits && !chatId.includes('@')) {
+        try {
+          const directChat = await this.client!.getChatById(`${cleanDigits}@c.us`);
+          if (directChat) return this.mapChatToInfo(directChat);
+        } catch {
+          // Continue to fallback list search
+        }
+      }
+
       const chats = await this.safeGetChats();
       const lower = chatId.toLowerCase();
-      const matched = chats.find(
-        (c) =>
-          c.name?.toLowerCase().includes(lower) ||
-          (c as any).formattedTitle?.toLowerCase().includes(lower)
-      );
+      const queryDigits = chatId.replace(/\D/g, '');
+
+      const matched = chats.find((c) => {
+        const raw = c as any;
+        if (c.id?._serialized?.toLowerCase() === lower) return true;
+        if (c.name?.toLowerCase().includes(lower)) return true;
+        if (raw.formattedTitle?.toLowerCase().includes(lower)) return true;
+        if (queryDigits.length >= 4) {
+          if (c.id?.user?.includes(queryDigits)) return true;
+          if (c.name && c.name.replace(/\D/g, '').includes(queryDigits)) return true;
+        }
+        return false;
+      });
+
       if (matched) return this.mapChatToInfo(matched);
+    } catch (err: any) {
+      logger.warn({ err: err?.message, chatId }, 'Fallback search failed');
     }
 
     return null;
@@ -452,13 +477,17 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
 
   private mapChatToInfo(chat: Chat): IChatInfo {
     const rawChat = chat as any;
+    const phoneNumber = !chat.isGroup && chat.id?.user ? chat.id.user : undefined;
+    const name = chat.name || rawChat.formattedTitle || (phoneNumber ? `+${phoneNumber}` : 'Unnamed Chat');
     return {
       id: chat.id._serialized,
-      name: chat.name || rawChat.formattedTitle || 'Unnamed Chat',
+      name,
       isGroup: chat.isGroup,
       unreadCount: chat.unreadCount || 0,
       lastMessageTimestamp: chat.timestamp ? chat.timestamp * 1000 : undefined,
       participantCount: chat.isGroup ? rawChat.participants?.length : undefined,
+      phoneNumber,
+      formattedTitle: rawChat.formattedTitle,
     };
   }
 

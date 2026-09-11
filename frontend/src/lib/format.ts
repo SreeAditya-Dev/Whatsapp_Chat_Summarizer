@@ -1,3 +1,5 @@
+import type { ChatInfo } from './types';
+
 export function timeAgo(input?: number | string): string {
   if (input === undefined || input === null) return '—';
   const ms = typeof input === 'number' ? (input < 1e12 ? input * 1000 : input) : Date.parse(input);
@@ -50,3 +52,61 @@ export function avatarTone(name: string): string {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return TONES[h % TONES.length];
 }
+
+/**
+ * Robust matching for chat search queries:
+ * - Case-insensitive substring match on name
+ * - Substring match on chat ID (e.g. 919876543210@c.us)
+ * - Substring match on phone number
+ * - Stripped digits-only match for formatted phone numbers (e.g. "+91 98765 43210", "9876543210", etc.)
+ */
+export function matchesChatQuery(chat: ChatInfo, query: string): boolean {
+  if (!query || !query.trim()) return true;
+  const q = query.trim().toLowerCase();
+
+  // 1. Direct name match
+  if (chat.name && chat.name.toLowerCase().includes(q)) return true;
+
+  // 2. Direct ID match
+  if (chat.id && chat.id.toLowerCase().includes(q)) return true;
+
+  // 3. Direct phone number match
+  if (chat.phoneNumber && chat.phoneNumber.toLowerCase().includes(q)) return true;
+
+  // 4. Digits-only normalized matching
+  const queryDigits = q.replace(/\D/g, '');
+  if (queryDigits.length >= 3) {
+    if (chat.phoneNumber) {
+      const phoneDigits = chat.phoneNumber.replace(/\D/g, '');
+      if (phoneDigits.includes(queryDigits)) return true;
+    }
+
+    const idDigits = chat.id.replace(/\D/g, '');
+    if (idDigits.includes(queryDigits)) return true;
+
+    if (chat.name) {
+      const nameDigits = chat.name.replace(/\D/g, '');
+      if (nameDigits.includes(queryDigits)) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Returns formatted phone number if available and distinct from chat name
+ */
+export function getChatDisplayNumber(chat: ChatInfo): string | null {
+  if (chat.isGroup) return null;
+  const raw =
+    chat.phoneNumber ||
+    (chat.id && chat.id.includes('@c.us') ? chat.id.replace('@c.us', '') : null);
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (!digits || digits.length < 5) return null;
+  // If the chat name is already this phone number, avoid duplicate display
+  const nameDigits = chat.name ? chat.name.replace(/\D/g, '') : '';
+  if (nameDigits === digits) return null;
+  return `+${digits}`;
+}
+

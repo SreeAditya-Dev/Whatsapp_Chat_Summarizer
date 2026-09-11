@@ -37,7 +37,7 @@ import { StatusPill } from '@/components/features/StatusPill';
 import { SummaryView } from '@/components/features/SummaryView';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { api } from '@/lib/api';
-import { avatarTone, initials } from '@/lib/format';
+import { avatarTone, initials, matchesChatQuery } from '@/lib/format';
 import type {
   AppSettings,
   ChatFilter,
@@ -171,7 +171,7 @@ export function ChatsView({
     if (filter === 'unread' && c.unreadCount === 0) return false;
     if (filter === 'groups' && !c.isGroup) return false;
     if (filter === 'direct' && c.isGroup) return false;
-    if (debouncedQuery && !c.name.toLowerCase().includes(debouncedQuery.toLowerCase())) return false;
+    if (debouncedQuery && !matchesChatQuery(c, debouncedQuery)) return false;
     return true;
   });
 
@@ -228,7 +228,17 @@ export function ChatsView({
   const isChatAllowedForReply = Boolean(
     appSettings?.aiReply.enabled &&
       (appSettings.aiReply.whitelistMode === 'all' ||
-        appSettings.aiReply.allowedChatIds.includes(selected?.id || '')),
+        appSettings.aiReply.allowedChatIds.includes(selected?.id || '') ||
+        (selected?.phoneNumber && appSettings.aiReply.allowedChatIds.includes(selected.phoneNumber)) ||
+        appSettings.aiReply.allowedChatIds.some((allowed) => {
+          const selDigits = selected?.id ? selected.id.replace(/\D/g, '') : '';
+          const allowedDigits = allowed.replace(/\D/g, '');
+          return (
+            selDigits.length >= 6 &&
+            allowedDigits.length >= 6 &&
+            (selDigits === allowedDigits || selDigits.endsWith(allowedDigits) || allowedDigits.endsWith(selDigits))
+          );
+        })),
   );
 
   const generateDraft = async () => {
@@ -413,6 +423,12 @@ export function ChatsView({
                   key={c.id}
                   chat={c}
                   selected={selected?.id === c.id}
+                  isWhitelisted={
+                    appSettings?.aiReply.enabled &&
+                    (appSettings.aiReply.whitelistMode === 'all' ||
+                      appSettings.aiReply.allowedChatIds.includes(c.id) ||
+                      (c.phoneNumber ? appSettings.aiReply.allowedChatIds.includes(c.phoneNumber) : false))
+                  }
                   onSelect={selectChat}
                 />
               ))}
@@ -682,16 +698,48 @@ export function ChatsView({
                       <ShieldAlertIcon className="size-4" />
                       <div>
                         <AlertTitle>Chat Not Whitelisted</AlertTitle>
-                        <AlertDescription>
-                          Admin settings restrict AI replies to approved chats only. &ldquo;{selected.name}&rdquo; is not whitelisted.{' '}
-                          <button
-                            type="button"
-                            onClick={() => navigate('/settings')}
-                            className="font-semibold underline hover:opacity-80"
-                          >
-                            Authorize in Settings
-                          </button>
-                          .
+                        <AlertDescription className="space-y-2">
+                          <p>
+                            Admin settings restrict AI replies to approved chats only. &ldquo;{selected.name}&rdquo; is not currently on the approved whitelist.
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5 text-xs font-semibold text-emerald-700 bg-white border-emerald-500/40 hover:bg-emerald-50 dark:bg-zinc-950 dark:text-emerald-400 dark:hover:bg-emerald-950/30 shadow-xs"
+                              onClick={async () => {
+                                if (!appSettings) return;
+                                const newIds = Array.from(
+                                  new Set([
+                                    ...appSettings.aiReply.allowedChatIds,
+                                    selected.id,
+                                    ...(selected.phoneNumber ? [selected.phoneNumber] : []),
+                                  ]),
+                                );
+                                try {
+                                  const res = await api.settings.update({
+                                    aiReply: { ...appSettings.aiReply, allowedChatIds: newIds },
+                                  });
+                                  if (res.data) setAppSettings(res.data);
+                                } catch {
+                                  navigate('/settings');
+                                }
+                              }}
+                            >
+                              <CheckIcon className="size-3.5" />
+                              Whitelist &ldquo;{selected.name}&rdquo; Now
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs"
+                              onClick={() => navigate('/settings')}
+                            >
+                              Manage in Settings →
+                            </Button>
+                          </div>
                         </AlertDescription>
                       </div>
                     </Alert>

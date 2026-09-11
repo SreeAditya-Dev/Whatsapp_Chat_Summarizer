@@ -5,12 +5,15 @@ import {
   CheckIcon,
   FileTextIcon,
   Loader2Icon,
+  PhoneIcon,
+  PlusIcon,
   SaveIcon,
   SearchIcon,
   ShieldCheckIcon,
   SparklesIcon,
   UserCheckIcon,
   UsersIcon,
+  XIcon,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
+import { getChatDisplayNumber, matchesChatQuery } from '@/lib/format';
 import type { AppSettings, ChatInfo, ReplyTone, SummaryMode } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -36,6 +40,8 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [chatSearch, setChatSearch] = useState('');
+  const [whitelistFilter, setWhitelistFilter] = useState<'all' | 'whitelisted' | 'unwhitelisted'>('all');
+  const [manualIdInput, setManualIdInput] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -96,13 +102,40 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
     });
   };
 
-  const selectAllChats = () => {
+  const addAllowedId = (rawId: string) => {
+    if (!settings || !rawId.trim()) return;
+    const trimmed = rawId.trim();
+    if (!settings.aiReply.allowedChatIds.includes(trimmed)) {
+      setSettings({
+        ...settings,
+        aiReply: {
+          ...settings.aiReply,
+          allowedChatIds: [...settings.aiReply.allowedChatIds, trimmed],
+        },
+      });
+    }
+    setManualIdInput('');
+  };
+
+  const removeAllowedId = (rawId: string) => {
     if (!settings) return;
     setSettings({
       ...settings,
       aiReply: {
         ...settings.aiReply,
-        allowedChatIds: chats.map((c) => c.id),
+        allowedChatIds: settings.aiReply.allowedChatIds.filter((id) => id !== rawId),
+      },
+    });
+  };
+
+  const selectAllChats = () => {
+    if (!settings) return;
+    const allIds = Array.from(new Set([...settings.aiReply.allowedChatIds, ...chats.map((c) => c.id)]));
+    setSettings({
+      ...settings,
+      aiReply: {
+        ...settings.aiReply,
+        allowedChatIds: allIds,
       },
     });
   };
@@ -118,8 +151,33 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
     });
   };
 
-  const filteredChats = chats.filter((c) =>
-    chatSearch ? c.name.toLowerCase().includes(chatSearch.toLowerCase()) : true,
+  const isChatWhitelisted = (chat: ChatInfo) => {
+    if (!settings) return false;
+    if (settings.aiReply.allowedChatIds.includes(chat.id)) return true;
+    if (chat.phoneNumber && settings.aiReply.allowedChatIds.includes(chat.phoneNumber)) return true;
+    const chatDigits = chat.id.replace(/\D/g, '');
+    if (chatDigits.length >= 6) {
+      return settings.aiReply.allowedChatIds.some((allowed) => {
+        const allowedDigits = allowed.replace(/\D/g, '');
+        return (
+          allowedDigits.length >= 6 &&
+          (allowedDigits === chatDigits || chatDigits.endsWith(allowedDigits) || allowedDigits.endsWith(chatDigits))
+        );
+      });
+    }
+    return false;
+  };
+
+  const filteredChats = chats.filter((c) => {
+    if (!matchesChatQuery(c, chatSearch)) return false;
+    const allowed = isChatWhitelisted(c);
+    if (whitelistFilter === 'whitelisted' && !allowed) return false;
+    if (whitelistFilter === 'unwhitelisted' && allowed) return false;
+    return true;
+  });
+
+  const customAllowedIds = (settings?.aiReply.allowedChatIds || []).filter(
+    (id) => !chats.some((c) => c.id === id || c.phoneNumber === id),
   );
 
   if (loading) {
@@ -503,66 +561,160 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
 
                 {/* Whitelist selection list */}
                 {settings.aiReply.whitelistMode === 'selected' && (
-                  <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-4">
+                  <div className="flex flex-col gap-3.5 rounded-xl border border-border bg-muted/40 p-4">
+                    {/* Header & Stats */}
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold">Allowed Chats:</span>
-                        <Badge variant="secondary">
-                          {settings.aiReply.allowedChatIds.length} of {chats.length} enabled
+                        <span className="text-xs font-semibold">Approved Whitelist:</span>
+                        <Badge variant="secondary" className="font-mono text-xs">
+                          {settings.aiReply.allowedChatIds.length} approved
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button type="button" variant="outline" size="sm" onClick={selectAllChats}>
-                          Select All
+                          Select All Active
                         </Button>
                         <Button type="button" variant="ghost" size="sm" onClick={clearAllChats}>
-                          Clear All
+                          Clear Whitelist
                         </Button>
                       </div>
                     </div>
 
-                    <div className="relative">
-                      <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={chatSearch}
-                        onChange={(e) => setChatSearch(e.target.value)}
-                        placeholder="Search chats to whitelist…"
-                        className="bg-card pl-9 text-xs"
-                      />
+                    {/* Filter Tabs & Search Bar */}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 border-b border-border/60 pb-2">
+                        <button
+                          type="button"
+                          onClick={() => setWhitelistFilter('all')}
+                          className={cn(
+                            'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                            whitelistFilter === 'all'
+                              ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
+                              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                          )}
+                        >
+                          All Chats ({chats.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWhitelistFilter('whitelisted')}
+                          className={cn(
+                            'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                            whitelistFilter === 'whitelisted'
+                              ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
+                              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                          )}
+                        >
+                          Whitelisted ({chats.filter((c) => isChatWhitelisted(c)).length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWhitelistFilter('unwhitelisted')}
+                          className={cn(
+                            'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                            whitelistFilter === 'unwhitelisted'
+                              ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
+                              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                          )}
+                        >
+                          Not Whitelisted ({chats.filter((c) => !isChatWhitelisted(c)).length})
+                        </button>
+                      </div>
+
+                      <div className="relative">
+                        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          value={chatSearch}
+                          onChange={(e) => setChatSearch(e.target.value)}
+                          placeholder="Search chats by name, phone number, or WhatsApp ID…"
+                          className="bg-card pl-9 pr-8 text-xs"
+                        />
+                        {chatSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setChatSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            <XIcon className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
+                    {/* Chat List */}
                     {filteredChats.length === 0 ? (
-                      <p className="py-4 text-center text-xs text-muted-foreground">
-                        {chatSearch ? 'No chats match your search.' : 'No chats found.'}
-                      </p>
+                      <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                        <p className="text-xs text-muted-foreground">
+                          {chatSearch
+                            ? `No active chats match "${chatSearch}".`
+                            : 'No chats match the selected filter.'}
+                        </p>
+                        {chatSearch.trim() && (
+                          <div className="mt-3 flex flex-col items-center gap-2">
+                            <p className="text-[11px] text-muted-foreground">
+                              Want to approve this number or ID directly?
+                            </p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 text-xs text-emerald-700 border-emerald-500/30 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/20"
+                              onClick={() => {
+                                addAllowedId(chatSearch);
+                                setChatSearch('');
+                              }}
+                            >
+                              <PlusIcon className="size-3.5" />
+                              Whitelist &ldquo;{chatSearch.trim()}&rdquo; Directly
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     ) : (
-                      <div className="nice-scroll flex max-h-60 flex-col gap-1 overflow-y-auto pr-1">
+                      <div className="nice-scroll flex max-h-64 flex-col gap-1.5 overflow-y-auto pr-1">
                         {filteredChats.map((c) => {
-                          const isAllowed = settings.aiReply.allowedChatIds.includes(c.id);
+                          const isAllowed = isChatWhitelisted(c);
+                          const displayNumber = getChatDisplayNumber(c);
+
                           return (
                             <label
                               key={c.id}
                               className={cn(
-                                'flex cursor-pointer items-center justify-between rounded-lg border p-2.5 text-xs transition-colors',
+                                'flex cursor-pointer items-center justify-between rounded-xl border p-2.5 text-xs transition-colors',
                                 isAllowed
                                   ? 'border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-500/10'
-                                  : 'border-border bg-card hover:bg-accent',
+                                  : 'border-border bg-card hover:bg-accent/70',
                               )}
                             >
-                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
                                 <input
                                   type="checkbox"
                                   checked={isAllowed}
                                   onChange={() => toggleChatAllowed(c.id)}
                                   className="size-4 rounded border-border text-zinc-900 focus:ring-zinc-900"
                                 />
-                                <span className="truncate font-medium">{c.name}</span>
-                                <Badge variant="secondary" className="text-[10px]">
-                                  {c.isGroup ? 'Group' : 'Direct'}
-                                </Badge>
+                                <div className="flex flex-col min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="truncate font-semibold text-foreground">{c.name}</span>
+                                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                                      {c.isGroup ? 'Group' : 'Direct'}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                    {displayNumber && (
+                                      <span className="flex items-center gap-1">
+                                        <PhoneIcon className="size-2.5 shrink-0 opacity-70" />
+                                        {displayNumber}
+                                      </span>
+                                    )}
+                                    {c.isGroup && typeof c.participantCount === 'number' && (
+                                      <span>{c.participantCount} members</span>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                               {isAllowed && (
-                                <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
                                   <CheckIcon className="size-3.5" /> Whitelisted
                                 </span>
                               )}
@@ -571,6 +723,70 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
                         })}
                       </div>
                     )}
+
+                    {/* Direct Add Form */}
+                    <div className="mt-1 rounded-xl border border-border bg-card/60 p-3">
+                      <div className="mb-2">
+                        <span className="text-xs font-semibold text-foreground">
+                          Add Approved Number or Chat ID Directly
+                        </span>
+                        <p className="text-[11px] text-muted-foreground">
+                          Pre-whitelist a contact phone number (e.g. +91 98765 43210 or 9876543210) or group ID.
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          value={manualIdInput}
+                          onChange={(e) => setManualIdInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              addAllowedId(manualIdInput);
+                            }
+                          }}
+                          placeholder="e.g. +91 98765 43210 or 12036302839@g.us"
+                          className="bg-card text-xs"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!manualIdInput.trim()}
+                          onClick={() => addAllowedId(manualIdInput)}
+                          className="gap-1.5 shrink-0 text-xs"
+                        >
+                          <PlusIcon className="size-3.5" /> Add
+                        </Button>
+                      </div>
+
+                      {/* Custom Allowed IDs Pill List */}
+                      {customAllowedIds.length > 0 && (
+                        <div className="mt-3 border-t border-border/60 pt-2.5">
+                          <span className="text-[11px] font-medium text-muted-foreground">
+                            Custom Added Numbers & IDs ({customAllowedIds.length}):
+                          </span>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {customAllowedIds.map((id) => (
+                              <Badge
+                                key={id}
+                                variant="secondary"
+                                className="flex items-center gap-1.5 py-1 px-2 text-xs font-mono"
+                              >
+                                <PhoneIcon className="size-3 text-muted-foreground" />
+                                <span>{id}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeAllowedId(id)}
+                                  className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
+                                  title="Remove from whitelist"
+                                >
+                                  <XIcon className="size-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

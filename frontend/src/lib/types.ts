@@ -35,6 +35,7 @@ export interface ChatInfo {
   unreadCount: number;
   lastMessageTimestamp?: number;
   participantCount?: number;
+  phoneNumber?: string;
 }
 
 export interface ChatMessage {

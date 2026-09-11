@@ -19,7 +19,7 @@ class MockChatProvider implements IChatProvider {
   private chats: IChatInfo[] = [
     { id: 'chat-1', name: 'Engineering Team', isGroup: true, unreadCount: 15 },
     { id: 'chat-2', name: 'Product Design', isGroup: true, unreadCount: 0 },
-    { id: 'chat-3', name: 'Sarah Connor', isGroup: false, unreadCount: 4 },
+    { id: 'chat-3', name: 'Sarah Connor', isGroup: false, unreadCount: 4, phoneNumber: '919876543210' },
     { id: 'chat-4', name: 'DevOps Alerts', isGroup: true, unreadCount: 230 },
   ];
 
@@ -294,6 +294,23 @@ describe('Express REST API (v1)', () => {
       .send({ chatId: 'chat-3', message: 'Hello' });
     expect(blockedSendRes.status).toBe(403);
     expect(blockedSendRes.body.error.code).toBe('CHAT_NOT_ALLOWED');
+  });
+
+  it('POST /api/v1/reply/draft should allow replies when chat is whitelisted by formatted phone number', async () => {
+    // Whitelist Sarah Connor by her formatted phone number (+91 98765 43210)
+    await request(app)
+      .put('/api/v1/settings')
+      .send({
+        aiReply: { enabled: true, whitelistMode: 'selected', allowedChatIds: ['+91 98765 43210'] },
+      });
+
+    // Drafting for chat-3 (which has phoneNumber '919876543210') should now be accepted
+    const draftRes = await request(app)
+      .post('/api/v1/reply/draft')
+      .send({ chatId: 'chat-3', tone: 'friendly' });
+    expect(draftRes.status).toBe(200);
+    expect(draftRes.body.success).toBe(true);
+    expect(draftRes.body.data.reply).toBeDefined();
   });
 
   it('POST /api/v1/summarize should support mode parameter (compact, brief, detailed)', async () => {
