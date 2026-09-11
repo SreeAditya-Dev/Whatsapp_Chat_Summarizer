@@ -4,6 +4,7 @@ import { HttpError } from '../../../core/errors/http-error';
 import { IChatProvider } from '../../../core/interfaces/chat.interface';
 import { MistralSummarizerService } from '../../../services/mistral.service';
 import { SettingsService } from '../../../services/settings.service';
+import { AutoReplyService } from '../../../services/auto-reply.service';
 import { ApiResponseHelper } from '../../../utils/api-response';
 import { logger } from '../../../utils/logger';
 
@@ -21,9 +22,19 @@ const sendReplySchema = z.object({
 
 export function createReplyRouter(
   chatProvider: IChatProvider,
-  summarizer: any
+  summarizer: any,
+  autoReplyService?: AutoReplyService
 ): Router {
   const router = Router();
+
+  /**
+   * GET /api/v1/reply/auto-history
+   * Retrieves recent automated AI replies.
+   */
+  router.get('/auto-history', (_req: Request, res: Response) => {
+    const history = autoReplyService ? autoReplyService.getHistory() : [];
+    res.status(200).json(ApiResponseHelper.success(history));
+  });
 
   /**
    * POST /api/v1/reply/draft

@@ -18,9 +18,12 @@ import { createQrPageRouter } from './routes/qr-page.route';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 
+import { AutoReplyService } from '../services/auto-reply.service';
+
 export function createExpressApp(
   chatProvider: IChatProvider,
-  summarizer: ISummarizer
+  summarizer: ISummarizer,
+  autoReplyService?: AutoReplyService
 ): Express {
   const app = express();
 
@@ -99,8 +102,8 @@ export function createExpressApp(
   // Summarize endpoint (rate limited + protected by optional API key)
   v1Router.use('/summarize', summarizeLimiter, apiKeyAuth, createSummaryRouter(chatProvider, summarizer));
 
-  // AI Reply endpoints (draft and send)
-  v1Router.use('/reply', summarizeLimiter, apiKeyAuth, createReplyRouter(chatProvider, summarizer));
+  // AI Reply endpoints (draft, send, and auto-history)
+  v1Router.use('/reply', summarizeLimiter, apiKeyAuth, createReplyRouter(chatProvider, summarizer, autoReplyService));
 
   // Settings endpoints (get and update preferences)
   v1Router.use('/settings', apiKeyAuth, createSettingsRouter());

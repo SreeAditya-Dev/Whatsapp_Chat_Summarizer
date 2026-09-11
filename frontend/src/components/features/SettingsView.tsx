@@ -453,7 +453,11 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
                 onChange={(e) =>
                   setSettings({
                     ...settings,
-                    aiReply: { ...settings.aiReply, enabled: e.target.checked },
+                    aiReply: {
+                      ...settings.aiReply,
+                      enabled: e.target.checked,
+                      autoReply: e.target.checked ? (settings.aiReply.autoReply ?? true) : false,
+                    },
                   })
                 }
                 className="peer sr-only"
@@ -464,6 +468,40 @@ export function SettingsView({ chats, onSettingsSaved }: SettingsViewProps) {
 
           {settings.aiReply.enabled && (
             <>
+              {/* Toggle Auto-Reply (Automatic vs Manual) */}
+              <div className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-display text-sm font-semibold">
+                      Auto-Reply to Incoming Messages
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                      Automatic
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    Automatically generates and sends context-aware replies to incoming messages from whitelisted chats without requiring manual button clicks.
+                  </span>
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={settings.aiReply.autoReply}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        aiReply: {
+                          ...settings.aiReply,
+                          autoReply: e.target.checked,
+                          requireReview: !e.target.checked,
+                        },
+                      })
+                    }
+                    className="peer sr-only"
+                  />
+                  <div className="peer h-6 w-11 rounded-full bg-zinc-300 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:bg-zinc-700 dark:peer-checked:bg-emerald-500 dark:peer-checked:after:border-zinc-800"></div>
+                </label>
+              </div>
               {/* Default Tone */}
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">

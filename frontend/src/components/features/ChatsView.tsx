@@ -294,15 +294,16 @@ export function ChatsView({
         })),
   );
 
-  const generateDraft = async () => {
+  const generateDraft = async (overrideTone?: ReplyTone) => {
     if (!selected) return;
+    const toneToUse = overrideTone || replyTone;
     setReplyDrafting(true);
     setReplyDraftError(null);
     setReplySuccessMessage(null);
     try {
       const res = await api.reply.draft({
         chatId: selected.id,
-        tone: replyTone,
+        tone: toneToUse,
         instruction: replyInstruction.trim() || undefined,
         messageLimit: 30,
       });
@@ -315,6 +316,21 @@ export function ChatsView({
       setReplyDrafting(false);
     }
   };
+
+  // Automatically generate AI draft when opening the reply tab for an allowed chat
+  useEffect(() => {
+    if (
+      detailTab === 'reply' &&
+      selected &&
+      isChatAllowedForReply &&
+      !replyDraft &&
+      !replyDrafting &&
+      !replySuccessMessage &&
+      !replyDraftError
+    ) {
+      void generateDraft();
+    }
+  }, [detailTab, selected?.id, isChatAllowedForReply]);
 
   const executeSendReply = async () => {
     if (!selected || !replyDraft.trim()) return;
@@ -486,6 +502,7 @@ export function ChatsView({
                       appSettings.aiReply.allowedChatIds.includes(c.id) ||
                       (c.phoneNumber ? appSettings.aiReply.allowedChatIds.includes(c.phoneNumber) : false))
                   }
+                  isAutoReply={Boolean(appSettings?.aiReply.enabled && appSettings?.aiReply.autoReply)}
                   onSelect={selectChat}
                 />
               ))}
@@ -841,11 +858,30 @@ export function ChatsView({
                           Generates a natural, realistic WhatsApp response tailored to recent messages.
                         </p>
                       </div>
-                      <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-                        <ShieldCheckIcon className="size-3.5 text-emerald-600" />
-                        Human Review Required
-                      </span>
+                      {appSettings?.aiReply.autoReply && isChatAllowedForReply ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Auto-Reply Active
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                          <ShieldCheckIcon className="size-3.5 text-blue-600" />
+                          Single Send Only
+                        </span>
+                      )}
                     </div>
+
+                    {appSettings?.aiReply.autoReply && isChatAllowedForReply && (
+                      <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 text-emerald-950 dark:text-emerald-200">
+                        <div className="flex items-center gap-2">
+                          <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="font-semibold text-xs">Automatic Background Replies Active</span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                          Incoming WhatsApp messages to {selected.name} are automatically replied to by AI in the background without needing manual clicks. You can also review or send custom instant replies below.
+                        </p>
+                      </div>
+                    )}
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
@@ -857,7 +893,10 @@ export function ChatsView({
                             <button
                               key={t}
                               type="button"
-                              onClick={() => setReplyTone(t)}
+                              onClick={() => {
+                                setReplyTone(t);
+                                void generateDraft(t);
+                              }}
                               className={cn(
                                 'flex-1 rounded-lg py-1.5 text-xs font-medium capitalize transition-all',
                                 replyTone === t
@@ -902,7 +941,7 @@ export function ChatsView({
                         ) : (
                           <SparklesIcon className="size-3.5" />
                         )}
-                        {replyDrafting ? 'Drafting…' : 'Generate AI Draft'}
+                        {replyDrafting ? 'Drafting…' : replyDraft ? 'Regenerate Draft' : 'Generate AI Draft'}
                       </Button>
                     </div>
 

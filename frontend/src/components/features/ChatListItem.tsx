@@ -9,10 +9,11 @@ interface Props {
   chat: ChatInfo;
   selected?: boolean;
   isWhitelisted?: boolean;
+  isAutoReply?: boolean;
   onSelect: (chat: ChatInfo) => void;
 }
 
-export function ChatListItem({ chat, selected, isWhitelisted, onSelect }: Props) {
+export function ChatListItem({ chat, selected, isWhitelisted, isAutoReply, onSelect }: Props) {
   const displayNumber = getChatDisplayNumber(chat);
 
   return (
@@ -50,15 +51,16 @@ export function ChatListItem({ chat, selected, isWhitelisted, onSelect }: Props)
             </p>
             {isWhitelisted && (
               <span
-                title="AI replies allowed by admin whitelist"
+                title={isAutoReply ? 'AI Auto-Reply active for this chat' : 'AI replies allowed by admin whitelist'}
                 className={cn(
-                  'inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-semibold shrink-0',
+                  'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold shrink-0',
                   selected
                     ? 'bg-emerald-500/25 text-emerald-200 dark:bg-emerald-500/25 dark:text-emerald-800'
                     : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
                 )}
               >
-                <CheckIcon className="size-2.5" /> AI
+                <span className={cn('size-1.5 rounded-full bg-emerald-500', isAutoReply && 'animate-pulse')} />
+                {isAutoReply ? 'Auto' : 'AI'}
               </span>
             )}
           </div>

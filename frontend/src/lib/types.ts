@@ -114,6 +114,18 @@ export interface ReplySendResponse {
   sentText: string;
 }
 
+export interface AutoReplyLog {
+  id: string;
+  chatId: string;
+  chatName: string;
+  isGroup: boolean;
+  incomingPreview: string;
+  replyText: string;
+  timestamp: string;
+  status: 'sent' | 'failed' | 'skipped';
+  reason?: string;
+}
+
 export interface AppSettings {
   summary: {
     defaultDepth: SummaryMode;
@@ -121,6 +133,7 @@ export interface AppSettings {
   };
   aiReply: {
     enabled: boolean;
+    autoReply: boolean;
     requireReview: boolean;
     defaultTone: ReplyTone;
     customPersona: string;

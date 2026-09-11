@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import EventEmitter from 'events';
 import request from 'supertest';
 import { Express } from 'express';
 import { createExpressApp } from '../src/api/server';
 import { WhatsAppService } from '../src/services/whatsapp.service';
+import { AutoReplyService } from '../src/services/auto-reply.service';
 import { IChatProvider, ChatProviderStatus, ChatFilterType } from '../src/core/interfaces/chat.interface';
 import { ISummarizer, SummarizeOptions } from '../src/core/interfaces/summarizer.interface';
 import { PaginationParams, PaginatedResult } from '../src/core/types/api.types';
@@ -150,6 +152,13 @@ class MockSummarizer implements ISummarizer {
       urgencyLevel: 'LOW',
       rawSummaryMarkdown: '# Summary\nPR approved.',
       generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async generateReply(options: any): Promise<{ reply: string; suggestions: string[] }> {
+    return {
+      reply: 'Thanks for the update! Sounds good to me.',
+      suggestions: ['Got it, thanks!', 'I will follow up shortly.'],
     };
   }
 }
@@ -474,5 +483,135 @@ describe('WhatsAppService.sendMessage (@lid and undefined ACK handling)', () => 
     await expect(service.sendMessage('123@c.us', '   ')).rejects.toThrow('Message content cannot be empty');
   });
 });
+
+describe('AutoReplyService (Automatic AI replies without manual clicks)', () => {
+  let emitter: EventEmitter;
+  let mockProvider: MockChatProvider;
+  let mockSummarizer: MockSummarizer;
+  let autoReplyService: AutoReplyService;
+
+  beforeEach(async () => {
+    emitter = new EventEmitter();
+    mockProvider = new MockChatProvider();
+    mockSummarizer = new MockSummarizer();
+    autoReplyService = new AutoReplyService(mockProvider, mockSummarizer, emitter);
+    // Set fast debounce for tests
+    autoReplyService.setDebounceMs(25);
+
+    // Whitelist chat-1 for automatic replies
+    const { SettingsService } = await import('../src/services/settings.service');
+    SettingsService.updateSettings({
+      aiReply: {
+        enabled: true,
+        autoReply: true,
+        whitelistMode: 'selected',
+        allowedChatIds: ['chat-1'],
+      },
+    });
+  });
+
+  it('automatically generates and sends a reply when an incoming message arrives for a whitelisted chat', async () => {
+    const sendSpy = vi.spyOn(mockProvider, 'sendMessage');
+
+    // Simulate WhatsApp incoming message event
+    emitter.emit('message_received', {
+      chatId: 'chat-1',
+      chatName: 'Engineering Team',
+      isGroup: true,
+      message: {
+        id: 'inc-1',
+        senderName: 'Bob',
+        timestamp: new Date(),
+        body: 'Can someone review the deploy status?',
+        hasMedia: false,
+      },
+    });
+
+    // Wait for fast debounce to fire
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(sendSpy).toHaveBeenCalledWith('chat-1', expect.stringContaining('Thanks for the update!'));
+
+    const history = autoReplyService.getHistory();
+    expect(history.length).toBe(1);
+    expect(history[0].chatId).toBe('chat-1');
+    expect(history[0].status).toBe('sent');
+  });
+
+  it('ignores incoming messages when chat is not on the admin whitelist', async () => {
+    const sendSpy = vi.spyOn(mockProvider, 'sendMessage');
+
+    // chat-2 is NOT whitelisted
+    emitter.emit('message_received', {
+      chatId: 'chat-2',
+      chatName: 'Product Design',
+      isGroup: true,
+      message: {
+        id: 'inc-2',
+        senderName: 'Alice',
+        timestamp: new Date(),
+        body: 'Hey team, quick update',
+        hasMedia: false,
+      },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(sendSpy).not.toHaveBeenCalled();
+    expect(autoReplyService.getHistory().length).toBe(0);
+  });
+
+  it('debounces multiple rapid messages from the same sender into 1 single reply', async () => {
+    const sendSpy = vi.spyOn(mockProvider, 'sendMessage');
+
+    // Rapid burst of 3 messages in 10ms
+    emitter.emit('message_received', {
+      chatId: 'chat-1',
+      chatName: 'Engineering Team',
+      isGroup: true,
+      message: { id: 'm1', senderName: 'Alice', timestamp: new Date(), body: 'Hey', hasMedia: false },
+    });
+    emitter.emit('message_received', {
+      chatId: 'chat-1',
+      chatName: 'Engineering Team',
+      isGroup: true,
+      message: { id: 'm2', senderName: 'Alice', timestamp: new Date(), body: 'Are you available?', hasMedia: false },
+    });
+    emitter.emit('message_received', {
+      chatId: 'chat-1',
+      chatName: 'Engineering Team',
+      isGroup: true,
+      message: { id: 'm3', senderName: 'Alice', timestamp: new Date(), body: 'Need a quick sync', hasMedia: false },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    // Strictly single reply dispatched!
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(autoReplyService.getHistory().length).toBe(1);
+  });
+
+  it('GET /api/v1/reply/auto-history returns automated reply history', async () => {
+    const app = createExpressApp(mockProvider, mockSummarizer, autoReplyService);
+
+    // Trigger one auto-reply
+    emitter.emit('message_received', {
+      chatId: 'chat-1',
+      chatName: 'Engineering Team',
+      isGroup: true,
+      message: { id: 'm1', senderName: 'Alice', timestamp: new Date(), body: 'Hello!', hasMedia: false },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const res = await request(app).get('/api/v1/reply/auto-history');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBe(1);
+    expect(res.body.data[0].chatId).toBe('chat-1');
+  });
+});
+
 
 

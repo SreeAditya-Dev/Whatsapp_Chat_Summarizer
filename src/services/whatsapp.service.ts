@@ -130,6 +130,47 @@ export class WhatsAppService extends EventEmitter implements IChatProvider {
       this.emit('status_changed', this.status);
     });
 
+    this.client.on('message', async (msg: Message) => {
+      try {
+        if (msg.fromMe) return;
+        if (msg.isStatus || (msg as any).isBroadcast) return;
+
+        const chatId = msg.from;
+        let chatName: string | undefined;
+        let isGroup = false;
+
+        try {
+          const chat = await msg.getChat();
+          chatName = chat?.name || (chat as any)?.formattedTitle;
+          isGroup = chat?.isGroup || false;
+        } catch {}
+
+        const chatMessage: IChatMessage = {
+          id:
+            msg.id?._serialized ||
+            (typeof msg.id === 'string' ? msg.id : (msg.id as any)?.id) ||
+            `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          senderName: msg.author || msg.from,
+          senderNumber: msg.from.replace(/\D/g, ''),
+          timestamp: new Date(msg.timestamp * 1000),
+          body: msg.body || '',
+          isQuoted: Boolean((msg as any).hasQuotedMsg),
+          hasMedia: msg.hasMedia,
+          mediaType: msg.type,
+        };
+
+        this.emit('message_received', {
+          chatId,
+          message: chatMessage,
+          chatName,
+          isGroup,
+          rawMessage: msg,
+        });
+      } catch (err: any) {
+        logger.debug({ err: err?.message }, 'Error in WhatsApp message event handler');
+      }
+    });
+
     this.client.on('auth_failure', (msg: string) => {
       logger.error({ msg }, 'WhatsApp authentication failure.');
       this.status.state = 'AUTH_FAILURE';

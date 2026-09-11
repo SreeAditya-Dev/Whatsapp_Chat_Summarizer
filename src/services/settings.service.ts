@@ -9,6 +9,7 @@ export interface AppSettings {
   };
   aiReply: {
     enabled: boolean;
+    autoReply: boolean;
     requireReview: boolean;
     defaultTone: 'casual' | 'friendly' | 'professional' | 'concise';
     customPersona: string;
@@ -24,7 +25,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   aiReply: {
     enabled: true,
-    requireReview: true,
+    autoReply: true,
+    requireReview: false,
     defaultTone: 'casual',
     customPersona: '',
     whitelistMode: 'all',
@@ -39,6 +41,7 @@ export interface UpdateAppSettingsDto {
   };
   aiReply?: {
     enabled?: boolean;
+    autoReply?: boolean;
     requireReview?: boolean;
     defaultTone?: 'casual' | 'friendly' | 'professional' | 'concise';
     customPersona?: string;
@@ -60,6 +63,14 @@ export class SettingsService {
       if (fs.existsSync(this.filePath)) {
         const raw = fs.readFileSync(this.filePath, 'utf-8');
         const parsed = JSON.parse(raw);
+        const aiReplyParsed = parsed.aiReply || {};
+        const autoReply =
+          typeof aiReplyParsed.autoReply === 'boolean'
+            ? aiReplyParsed.autoReply
+            : typeof aiReplyParsed.requireReview === 'boolean'
+              ? !aiReplyParsed.requireReview
+              : DEFAULT_SETTINGS.aiReply.autoReply;
+
         this.cachedSettings = {
           summary: {
             ...DEFAULT_SETTINGS.summary,
@@ -67,7 +78,9 @@ export class SettingsService {
           },
           aiReply: {
             ...DEFAULT_SETTINGS.aiReply,
-            ...(parsed.aiReply || {}),
+            ...aiReplyParsed,
+            autoReply,
+            requireReview: !autoReply,
           },
         };
         return this.cachedSettings!;
@@ -82,6 +95,19 @@ export class SettingsService {
 
   static updateSettings(partial: UpdateAppSettingsDto): AppSettings {
     const current = this.getSettings();
+    const partialAi = partial.aiReply || {};
+    let autoReply = partialAi.autoReply;
+    let requireReview = partialAi.requireReview;
+
+    if (autoReply !== undefined && requireReview === undefined) {
+      requireReview = !autoReply;
+    } else if (requireReview !== undefined && autoReply === undefined) {
+      autoReply = !requireReview;
+    } else if (autoReply === undefined && requireReview === undefined) {
+      autoReply = current.aiReply.autoReply;
+      requireReview = current.aiReply.requireReview;
+    }
+
     const updated: AppSettings = {
       summary: {
         ...current.summary,
@@ -89,7 +115,9 @@ export class SettingsService {
       },
       aiReply: {
         ...current.aiReply,
-        ...(partial.aiReply || {}),
+        ...partialAi,
+        autoReply: autoReply ?? true,
+        requireReview: requireReview ?? false,
       },
     };
 

@@ -94,5 +94,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    autoHistory: () =>
+      request<import('./types').ApiEnvelope<import('./types').AutoReplyLog[]>>('/api/v1/reply/auto-history'),
   },
 };

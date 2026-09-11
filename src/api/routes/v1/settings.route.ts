@@ -14,6 +14,7 @@ const updateSettingsSchema = z.object({
   aiReply: z
     .object({
       enabled: z.boolean().optional(),
+      autoReply: z.boolean().optional(),
       requireReview: z.boolean().optional(),
       defaultTone: z.enum(['casual', 'friendly', 'professional', 'concise']).optional(),
       customPersona: z.string().max(300).optional(),

@@ -7,6 +7,8 @@ import { TelegramBotService } from './services/telegram.service';
 import { createExpressApp } from './api/server';
 import { logger } from './utils/logger';
 
+import { AutoReplyService } from './services/auto-reply.service';
+
 async function bootstrap() {
   logger.info(
     { nodeEnv: env.NODE_ENV, port: env.PORT, host: env.HOST, mistralModel: env.MISTRAL_MODEL },
@@ -16,6 +18,7 @@ async function bootstrap() {
   // 1. Initialize Domain Services
   const whatsappService = new WhatsAppService();
   const summarizerService = new MistralSummarizerService();
+  const autoReplyService = new AutoReplyService(whatsappService, summarizerService, whatsappService);
 
   // 2. Initialize Telegram Bot
   let telegramBot: TelegramBotService | null = null;
@@ -34,7 +37,7 @@ async function bootstrap() {
   }
 
   // 3. Initialize Express HTTP Server
-  const app = createExpressApp(whatsappService, summarizerService);
+  const app = createExpressApp(whatsappService, summarizerService, autoReplyService);
   const server = http.createServer(app);
 
   server.listen(env.PORT, env.HOST, () => {
@@ -64,6 +67,8 @@ async function bootstrap() {
         logger.error({ error: e.message }, 'Error stopping Telegram bot');
       }
     }
+
+    autoReplyService.clearQueue();
 
     try {
       await whatsappService.disconnect();
