@@ -15,7 +15,7 @@ import type { WhatsAppStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export const NAV_ITEMS = [
-  { path: '/', label: 'Overview', icon: LayoutDashboardIcon, hint: 'Catch up' },
+  { path: '/app', label: 'Overview', icon: LayoutDashboardIcon, hint: 'Catch up' },
   { path: '/chats', label: 'Chats', icon: MessagesSquareIcon, hint: 'Summarize' },
   { path: '/settings', label: 'Settings', icon: SettingsIcon, hint: 'Preferences' },
   { path: '/connect', label: 'Connect', icon: QrCodeIcon, hint: 'Pair phone' },
@@ -40,7 +40,7 @@ export function Sidebar({
       <div className="flex flex-col gap-3">
         <button
           type="button"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/app')}
           className="flex cursor-pointer items-center gap-2.5 rounded-xl p-2 text-left transition-colors hover:bg-accent"
         >
           <img
@@ -60,8 +60,8 @@ export function Sidebar({
         <nav className="-mt-1 flex flex-col gap-0.5" aria-label="Primary">
           {NAV_ITEMS.map((n) => {
             const active =
-              n.path === '/'
-                ? location.pathname === '/' || location.pathname === '/overview'
+              n.path === '/app'
+                ? location.pathname === '/app' || location.pathname === '/overview'
                 : location.pathname.startsWith(n.path);
             return (
               <button
@@ -171,8 +171,8 @@ export function MobileNav({
     >
       {NAV_ITEMS.map((n) => {
         const active =
-          n.path === '/'
-            ? location.pathname === '/' || location.pathname === '/overview'
+          n.path === '/app'
+            ? location.pathname === '/app' || location.pathname === '/overview'
             : location.pathname.startsWith(n.path);
         return (
           <button

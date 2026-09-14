@@ -4,6 +4,7 @@ import { AlertTriangleIcon } from 'lucide-react';
 import { MobileNav, Sidebar } from '@/components/layout/Nav';
 import { TopBar } from '@/components/layout/TopBar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { LandingView } from '@/components/landing/LandingView';
 import { OverviewView } from '@/components/features/OverviewView';
 import { ChatsView } from '@/components/features/ChatsView';
 import { ConnectView } from '@/components/features/ConnectView';
@@ -95,6 +96,17 @@ export default function App() {
   const backendDown =
     !healthPoll.loading && !healthPoll.data && !!healthPoll.error && !!chatsPoll.error;
 
+  const isLanding = location.pathname === '/';
+
+  if (isLanding) {
+    return (
+      <LandingView
+        model={healthPoll.data?.services.ai.model}
+        totalUnread={totalUnread}
+      />
+    );
+  }
+
   return (
     <div className="app-texture min-h-screen bg-background text-foreground overflow-x-clip">
       <div className="mx-auto flex min-h-screen w-full max-w-[1600px] min-w-0 gap-4 px-4 py-4 lg:px-5">
@@ -154,7 +166,7 @@ export default function App() {
           <ErrorBoundary>
           <Routes>
             <Route
-              path="/"
+              path="/app"
               element={
                 <OverviewView
                   health={healthPoll.data}
@@ -173,7 +185,7 @@ export default function App() {
                 />
               }
             />
-            <Route path="/overview" element={<Navigate to="/" replace />} />
+            <Route path="/overview" element={<Navigate to="/app" replace />} />
             <Route
               path="/chats"
               element={
@@ -226,7 +238,7 @@ export default function App() {
                 />
               }
             />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/app" replace />} />
           </Routes>
           </ErrorBoundary>
 

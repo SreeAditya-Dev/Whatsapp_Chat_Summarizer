@@ -1,0 +1,185 @@
+/* Relay landing — transcript theme. Scoped under .relay-landing so the
+   dashboard theme in index.css is untouched. No gradients, no glow. */
+
+.relay-landing {
+  --rl-pine: #0d1f18;
+  --rl-pine-2: #12291f;
+  --rl-paper: #e9ede6;
+  --rl-paper-2: #dfe5da;
+  --rl-card: #ffffff;
+  --rl-line: #d3dbcf;
+  --rl-leaf: #1f6b4a;
+  --rl-leaf-deep: #164e36;
+  --rl-tick: #2fa8de;
+  --rl-amber: #d99a26;
+  --rl-amber-ink: #6f4507;
+  --rl-ink-soft: #3d4a43;
+  --rl-muted: #5d6c63;
+  --rl-outgoing: #d9f0d4;
+  --rl-incoming: #ffffff;
+  background: var(--rl-paper);
+  color: var(--rl-pine);
+  font-family: 'DM Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  overflow-x: clip;
+}
+
+.relay-landing .font-display-landing {
+  font-family: 'Bricolage Grotesque', 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.relay-landing .font-mono-landing {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* dotted chat-wallpaper texture, flat + quiet */
+.rl-wallpaper {
+  background-color: var(--rl-paper);
+  background-image: radial-gradient(rgba(13, 31, 24, 0.09) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.rl-wallpaper-dark {
+  background-color: var(--rl-pine);
+  background-image: radial-gradient(rgba(233, 237, 230, 0.08) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+/* WhatsApp day divider pill */
+.rl-daypill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--rl-line);
+  background: var(--rl-card);
+  color: var(--rl-muted);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  box-shadow: 0 1px 2px rgba(13, 31, 24, 0.06);
+}
+
+/* chat bubbles */
+.rl-bubble {
+  position: relative;
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem 0.4rem;
+  font-size: 13.5px;
+  line-height: 1.45;
+  box-shadow: 0 1px 1.5px rgba(13, 31, 24, 0.12);
+  border: 1px solid rgba(13, 31, 24, 0.06);
+}
+.rl-bubble-in {
+  background: var(--rl-incoming);
+  border-top-left-radius: 2px;
+}
+.rl-bubble-out {
+  background: var(--rl-outgoing);
+  border-top-right-radius: 2px;
+}
+.rl-bubble .rl-meta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  color: #7a8a80;
+}
+.rl-ticks {
+  color: var(--rl-tick);
+  font-size: 12px;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+/* single message arrival */
+@keyframes rl-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.rl-pop {
+  animation: rl-pop 0.45s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+}
+
+/* marquee */
+@keyframes rl-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.rl-marquee-track {
+  animation: rl-marquee 36s linear infinite;
+  will-change: transform;
+}
+.rl-marquee:hover .rl-marquee-track {
+  animation-play-state: paused;
+}
+
+/* reveal defaults — visible without JS; GSAP sets initial state only when motion is ok */
+.relay-landing [data-reveal] {
+  opacity: 1;
+}
+.relay-landing.js-motion [data-reveal] {
+  opacity: 0;
+}
+
+/* phone */
+.rl-phone {
+  border-radius: 2.2rem;
+  border: 1px solid rgba(233, 237, 230, 0.16);
+  background: #0a1712;
+  box-shadow:
+    0 30px 80px -30px rgba(6, 14, 10, 0.55),
+    0 2px 0 rgba(255, 255, 255, 0.06) inset;
+}
+.rl-phone-screen {
+  border-radius: 1.7rem;
+  overflow: hidden;
+}
+
+/* CTA sheen-free hover lift */
+.rl-lift {
+  transition: transform 200ms ease, box-shadow 200ms ease, background-color 200ms ease, border-color 200ms ease;
+}
+.rl-lift:hover {
+  transform: translateY(-2px);
+}
+
+/* focus */
+.relay-landing :focus-visible {
+  outline: 2px solid var(--rl-leaf);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* code block */
+.rl-code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+/* thin scroll progress */
+.rl-progress {
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-pop {
+    animation: none;
+  }
+  .rl-marquee-track {
+    animation: none;
+  }
+  .rl-lift,
+  .rl-lift:hover {
+    transform: none;
+  }
+}

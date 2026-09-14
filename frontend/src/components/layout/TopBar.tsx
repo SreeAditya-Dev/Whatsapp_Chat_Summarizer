@@ -5,7 +5,7 @@ import { StatusPill } from '@/components/features/StatusPill';
 import type { WhatsAppStatus } from '@/lib/types';
 
 const TITLES: Record<string, { title: string; sub: string }> = {
-  '/': { title: 'Good day', sub: 'Here is what needs you most.' },
+  '/app': { title: 'Good day', sub: 'Here is what needs you most.' },
   '/overview': { title: 'Good day', sub: 'Here is what needs you most.' },
   '/chats': { title: 'Chats', sub: 'Pick a conversation, get the brief.' },
   '/connect': { title: 'Connect', sub: 'Pair WhatsApp once, stay linked.' },
@@ -26,7 +26,7 @@ export function TopBar({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const meta = TITLES[location.pathname] ?? TITLES['/'];
+  const meta = TITLES[location.pathname] ?? TITLES['/app'];
   return (
     <header className="sticky top-4 z-30">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 rounded-xl border border-border bg-card/90 px-4 py-2.5 shadow-soft backdrop-blur">
