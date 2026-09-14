@@ -7,17 +7,17 @@ An intelligent, modular service that solves WhatsApp message overload (such as 2
 ## 🎬 Video Demo & Walkthrough
 
 <p align="center">
-  <a href="assets/video.mp4" title="Click to play full video walkthrough">
+  <a href="https://res.cloudinary.com/dukjtmdtn/video/upload/v1789400878/video_ay4oai.mp4" title="Click to play full video walkthrough">
     <img src="assets/video-preview.gif" alt="WhatsApp Chat Summarizer Video Demo Preview" width="100%" style="max-width: 860px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
   </a>
 </p>
 
 <p align="center">
-  <a href="assets/video.mp4">
-    <img src="https://img.shields.io/badge/▶_Play_Demo_Video-assets%2Fvideo.mp4-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="Play Video" />
+  <a href="https://res.cloudinary.com/dukjtmdtn/video/upload/v1789400878/video_ay4oai.mp4">
+    <img src="https://img.shields.io/badge/▶_Play_Demo_Video-%2Fvideo.mp4-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="Play Video" />
   </a>
   <br/>
-  <sub>🎬 <em><b>Click the preview above or the badge to play the full 1080p walkthrough video with sound (<a href="assets/video.mp4"><code>assets/video.mp4</code></a>).</b></em></sub>
+  <sub>🎬 <em><b>Click the preview above or the badge to play the full 1080p walkthrough video with sound (<a href="https://res.cloudinary.com/dukjtmdtn/video/upload/v1789400878/video_ay4oai.mp4"><code>Demo-Video</code></a>).</b></em></sub>
 </p>
 
 ---
